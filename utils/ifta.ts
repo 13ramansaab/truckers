@@ -1,6 +1,3 @@
-// utils/ifta.ts
-import { LocationPoint } from '@/types';
-
 export interface IFTAPoint {
   lat: number;
   lng: number;
@@ -49,7 +46,7 @@ export const haversineMi = (
   return R * c;
 };
 
-// Sampling policy: take point if ≥30s OR ≥0.8km (≈0.497mi)
+// Sampling policy: take point if ≥30s OR ≥0.497mi (≈0.8km)
 export const shouldSample = (
   prevPoint: IFTAPoint | null,
   newPoint: IFTAPoint,
@@ -121,7 +118,7 @@ export const bucketMilesByState = (points: IFTAPoint[]): Record<string, number> 
 };
 
 // Compute IFTA calculations
-export const computeQuarterIFTA = (data: IFTAQuarterData): IFTAResult => {
+export const computeIFTA = (data: IFTAQuarterData): IFTAResult => {
   const { milesByState, fuelByState, ratesByState } = data;
   
   // Calculate totals

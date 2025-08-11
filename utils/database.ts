@@ -413,6 +413,125 @@ const getDefaultTaxRates = (): Record<string, number> => {
   };
 };
 
+// Quarter-specific data retrieval
+export const getQuarterTrips = async (year: number, quarter: number): Promise<Trip[]> => {
+  try {
+    const quarterStart = new Date(year, (quarter - 1) * 3, 1);
+    const quarterEnd = new Date(year, quarter * 3, 0, 23, 59, 59);
+    
+    const { data, error } = await supabase
+      .from('trips')
+      .select('*')
+      .gte('started_at', quarterStart.toISOString())
+      .lte('started_at', quarterEnd.toISOString())
+      .order('started_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching quarter trips:', error);
+      return [];
+    }
+
+    if (!data) return [];
+    return data.map(mapDbTripToDomain);
+  } catch (error) {
+    console.error('Error fetching quarter trips:', error);
+    return [];
+  }
+};
+
+export const getQuarterFuelPurchases = async (year: number, quarter: number): Promise<FuelPurchase[]> => {
+  try {
+    const quarterStart = new Date(year, (quarter - 1) * 3, 1);
+    const quarterEnd = new Date(year, quarter * 3, 0, 23, 59, 59);
+    
+    const { data, error } = await supabase
+      .from('fuel_purchases')
+      .select('*')
+      .gte('date', quarterStart.toISOString().split('T')[0])
+      .lte('date', quarterEnd.toISOString().split('T')[0])
+      .order('date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching quarter fuel purchases:', error);
+      return [];
+    }
+
+    if (!data) return [];
+
+    return data.map((purchase: any) => ({
+      id: purchase.id,
+      date: purchase.date + 'T00:00:00.000Z',
+      state: purchase.state || 'Unknown',
+      gallons: purchase.gallons,
+      pricePerGallon: purchase.price_per_gallon,
+      totalCost: purchase.total_cost,
+      taxIncludedAtPump: purchase.tax_included,
+      location: purchase.location || 'Unknown',
+      odometer: purchase.odometer,
+      receiptPhoto: purchase.receipt_url,
+      notes: null,
+    }));
+  } catch (error) {
+    console.error('Error fetching quarter fuel purchases:', error);
+    return [];
+  }
+};
+
+export const getTaxRatesSnapshot = async (year: number, quarter: number): Promise<Record<string, number>> => {
+  try {
+    const quarterEnd = new Date(year, quarter * 3, 0);
+    
+    const { data, error } = await supabase
+      .from('tax_rates')
+      .select('*')
+      .lte('effective_date', quarterEnd.toISOString().split('T')[0])
+      .order('effective_date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching tax rates:', error);
+      return getDefaultTaxRates();
+    }
+
+    if (!data || data.length === 0) {
+      return getDefaultTaxRates();
+    }
+
+    // Get the latest rate for each state
+    const ratesByState: Record<string, number> = {};
+    data.forEach((rate: any) => {
+      if (!ratesByState[rate.state]) {
+        ratesByState[rate.state] = rate.rate;
+      }
+    });
+
+    // Fill in missing states with defaults
+    const defaultRates = getDefaultTaxRates();
+    return { ...defaultRates, ...ratesByState };
+  } catch (error) {
+    console.error('Error fetching tax rates snapshot:', error);
+    return getDefaultTaxRates();
+  }
+};
+
+// Default tax rates fallback
+const getDefaultTaxRates = (): Record<string, number> => {
+  return {
+    'Alabama': 0.19, 'Alaska': 0.08, 'Arizona': 0.18, 'Arkansas': 0.2225,
+    'California': 0.40, 'Colorado': 0.2225, 'Connecticut': 0.25, 'Delaware': 0.22,
+    'Florida': 0.336, 'Georgia': 0.184, 'Hawaii': 0.16, 'Idaho': 0.25,
+    'Illinois': 0.385, 'Indiana': 0.16, 'Iowa': 0.215, 'Kansas': 0.24,
+    'Kentucky': 0.184, 'Louisiana': 0.16, 'Maine': 0.244, 'Maryland': 0.243,
+    'Massachusetts': 0.21, 'Michigan': 0.153, 'Minnesota': 0.2235, 'Mississippi': 0.184,
+    'Missouri': 0.17, 'Montana': 0.2775, 'Nebraska': 0.248, 'Nevada': 0.27,
+    'New Hampshire': 0.222, 'New Jersey': 0.325, 'New Mexico': 0.17, 'New York': 0.331,
+    'North Carolina': 0.343, 'North Dakota': 0.21, 'Ohio': 0.28, 'Oklahoma': 0.16,
+    'Oregon': 0.24, 'Pennsylvania': 0.535, 'Rhode Island': 0.30, 'South Carolina': 0.167,
+    'South Dakota': 0.22, 'Tennessee': 0.214, 'Texas': 0.15, 'Utah': 0.294,
+    'Vermont': 0.26, 'Virginia': 0.162, 'Washington': 0.375, 'West Virginia': 0.205,
+    'Wisconsin': 0.249, 'Wyoming': 0.14
+  };
+};
+
 // Optional location point insertion (no-op if table doesn't exist)
 export const insertLocationPoint = async (
   tripId: string,
