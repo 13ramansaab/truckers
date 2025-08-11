@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { TrendingUp, DollarSign, MapPin, Calendar } from 'lucide-react-native';
-import TripTracker from '@/components/TripTracker';
-import { getAllTrips, getAllFuelEntries, initializeDatabase } from '@/utils/database';
+import { Link, useFocusEffect } from 'expo-router';
+import { getAllTrips, getAllFuelEntries, getActiveTrip, initializeDatabase } from '@/utils/database';
 import { requestLocationPermissions } from '@/utils/location';
 import { Trip } from '@/types';
 
@@ -11,63 +11,51 @@ export default function HomeScreen() {
   const [fuelEntries, setFuelEntries] = useState<any[]>([]);
   const [currentTrip, setCurrentTrip] = useState<Trip | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
   const mounted = useRef(false);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
-    initializeApp();
-    
-    return () => {
-      mounted.current = false;
-    };
+    return () => { mounted.current = false; };
   }, []);
 
-  const initializeApp = async () => {
-    if (mounted.current) {
-      setIsLoading(true);
-    }
+  const loadData = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    if (mounted.current) setIsLoading(true);
     try {
-      // Initialize database
-      await initializeDatabase();
-      
-      // Request location permissions
-      await requestLocationPermissions();
-      
-      // Load data
-      await loadData();
-    } catch (error) {
-      console.error('Error initializing app:', error);
-    } finally {
-      if (mounted.current) {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  const loadData = async () => {
-    try {
-      const tripsData = await getAllTrips();
-      const fuelData = await getAllFuelEntries();
-      
-      if (mounted.current) {
-        setTrips(tripsData || []);
-        setFuelEntries(fuelData || []);
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
+      await initializeDatabase();               // ok to call; it’s lightweight
+      await requestLocationPermissions();       // guarded in utils/location.ts
+      const [tripsData, fuelData, active] = await Promise.all([
+        getAllTrips(),
+        getAllFuelEntries(),
+        getActiveTrip(),
+      ]);
+      if (!mounted.current) return;
+      setTrips(tripsData || []);
+      setFuelEntries(fuelData || []);
+      setCurrentTrip(active);
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
       if (mounted.current) {
         setTrips([]);
         setFuelEntries([]);
+        setCurrentTrip(null);
       }
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleTripUpdate = (trip: Trip | null) => {
-    if (mounted.current) {
-      setCurrentTrip(trip);
-    }
-    loadData();
-  };
+  // Refresh when Home tab gains focus
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+      return () => {};
+    }, [loadData])
+  );
 
   if (isLoading) {
     return (
@@ -77,13 +65,12 @@ export default function HomeScreen() {
     );
   }
 
-  // Calculate statistics with null safety
-  const totalMiles = trips.reduce((sum, trip) => sum + (trip?.totalMiles || 0), 0);
-  const totalFuelCost = fuelEntries.reduce((sum, fuel) => sum + (fuel?.totalCost || 0), 0);
-  const totalGallons = fuelEntries.reduce((sum, fuel) => sum + (fuel?.gallons || 0), 0);
+  // Stats
+  const totalMiles = trips.reduce((sum, t) => sum + (t?.totalMiles || 0), 0);
+  const totalFuelCost = fuelEntries.reduce((sum, f) => sum + (f?.totalCost || 0), 0);
+  const totalGallons = fuelEntries.reduce((sum, f) => sum + (f?.gallons || 0), 0);
   const avgMPG = totalGallons > 0 ? totalMiles / totalGallons : 0;
 
-  // Get current quarter info
   const now = new Date();
   const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
   const currentYear = now.getFullYear();
@@ -95,7 +82,24 @@ export default function HomeScreen() {
         <Text style={styles.subtitle}>Q{currentQuarter} {currentYear} Dashboard</Text>
       </View>
 
-      <TripTracker onTripUpdate={handleTripUpdate} />
+      {/* Status card instead of embedding TripTracker here */}
+      <View style={styles.trackerCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.trackerTitle}>Trip Tracker</Text>
+          <Text style={styles.trackerStatus}>
+            {currentTrip?.isActive
+              ? `Running since ${new Date(currentTrip.startDate).toLocaleString()}`
+              : 'Not running'}
+          </Text>
+        </View>
+        <Link href="/trip" asChild>
+          <TouchableOpacity style={styles.trackerButton}>
+            <Text style={styles.trackerButtonText}>
+              {currentTrip?.isActive ? 'Manage Trip' : 'Start Trip'}
+            </Text>
+          </TouchableOpacity>
+        </Link>
+      </View>
 
       <View style={styles.statsContainer}>
         <View style={styles.statsGrid}>
@@ -165,43 +169,33 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#111827',
-  },
-  header: {
-    padding: 20,
-    paddingTop: 60,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    color: '#9CA3AF',
-    fontSize: 16,
-    marginTop: 4,
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#111827',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-  },
-  statsContainer: {
-    paddingHorizontal: 16,
+  container: { flex: 1, backgroundColor: '#111827' },
+  header: { padding: 20, paddingTop: 60 },
+  title: { color: '#FFFFFF', fontSize: 28, fontWeight: 'bold' },
+  subtitle: { color: '#9CA3AF', fontSize: 16, marginTop: 4 },
+
+  trackerCard: {
+    backgroundColor: '#1F2937',
+    marginHorizontal: 16,
     marginBottom: 24,
-  },
-  statsGrid: {
+    padding: 16,
+    borderRadius: 12,
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 12,
   },
+  trackerTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  trackerStatus: { color: '#9CA3AF', fontSize: 12, marginTop: 2 },
+  trackerButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  trackerButtonText: { color: '#fff', fontWeight: '600' },
+
+  statsContainer: { paddingHorizontal: 16, marginBottom: 24 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   statCard: {
     backgroundColor: '#1F2937',
     borderRadius: 12,
@@ -210,48 +204,16 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: '45%',
   },
-  statValue: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-  statLabel: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  recentActivity: {
-    paddingHorizontal: 16,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  emptyState: {
-    backgroundColor: '#1F2937',
-    borderRadius: 12,
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyStateText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  emptyStateSubtext: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  activityList: {
-    gap: 8,
-  },
+  statValue: { color: '#FFFFFF', fontSize: 24, fontWeight: 'bold', marginTop: 8 },
+  statLabel: { color: '#9CA3AF', fontSize: 12, marginTop: 4, textAlign: 'center' },
+
+  recentActivity: { paddingHorizontal: 16, marginBottom: 24 },
+  sectionTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginBottom: 16 },
+  emptyState: { backgroundColor: '#1F2937', borderRadius: 12, padding: 32, alignItems: 'center' },
+  emptyStateText: { color: '#FFFFFF', fontSize: 18, fontWeight: '500', marginBottom: 8 },
+  emptyStateSubtext: { color: '#9CA3AF', fontSize: 14, textAlign: 'center' },
+
+  activityList: { gap: 8 },
   activityItem: {
     backgroundColor: '#1F2937',
     borderRadius: 8,
@@ -260,17 +222,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  activityContent: {
-    flex: 1,
-  },
-  activityTitle: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  activityDate: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    marginTop: 2,
-  },
+  activityContent: { flex: 1 },
+  activityTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '500' },
+  activityDate: { color: '#9CA3AF', fontSize: 12, marginTop: 2 },
+
+  loadingContainer: { flex: 1, backgroundColor: '#111827', justifyContent: 'center', alignItems: 'center' },
+  loadingText: { color: '#FFFFFF', fontSize: 18 },
 });
