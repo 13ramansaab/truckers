@@ -51,8 +51,13 @@ export default function QuarterScreen() {
       
       // Aggregate fuel by state
       const fuelByState: Record<string, number> = {};
+      const fuelCostByState: Record<string, number> = {};
+      let totalFuelCost = 0;
+      
       fuelEntries.forEach(fuel => {
         fuelByState[fuel.state] = (fuelByState[fuel.state] || 0) + fuel.gallons;
+        fuelCostByState[fuel.state] = (fuelCostByState[fuel.state] || 0) + fuel.total_cost;
+        totalFuelCost += fuel.total_cost;
       });
       
       // Compute IFTA results
@@ -65,10 +70,13 @@ export default function QuarterScreen() {
       setQuarterData({
         quarter,
         year,
+        totalFuelCost,
         ...iftaResult,
         stateBreakdown: Object.entries(iftaResult.stateResults).map(([state, data]) => ({
           state,
           ...data,
+          fuelPurchased: fuelByState[state] || 0,
+          fuelCost: fuelCostByState[state] || 0,
           taxRate: taxRates[state] || 0,
         })).sort((a, b) => b.miles - a.miles),
       });
@@ -303,7 +311,7 @@ export default function QuarterScreen() {
 
               <View style={styles.summaryCard}>
                 <Calculator size={24} color="#F59E0B" />
-                <Text style={styles.summaryValue}>{quarterData.avgMPG?.toFixed(1) || '0.0'}</Text>
+                <Text style={styles.summaryValue}>{quarterData.fleetMPG.toFixed(1)}</Text>
                 <Text style={styles.summaryLabel}>Avg MPG</Text>
               </View>
 
