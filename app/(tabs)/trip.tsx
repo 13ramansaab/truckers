@@ -7,11 +7,12 @@ import { getAllTrips, deleteTrip as deleteTripFromDb } from '@/utils/database';
 
 export default function TripScreen() {
   const [trips, setTrips] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true); // spinner only for first load
 
   const mounted = useRef(false);
   const inFlight = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedOnce = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -23,49 +24,63 @@ export default function TripScreen() {
     setTrips(prev => {
       if (prev.length !== next.length) return next;
       for (let i = 0; i < prev.length; i++) {
-        if (prev[i]?.id !== next[i]?.id || prev[i]?.totalMiles !== next[i]?.totalMiles) {
+        if (
+          prev[i]?.id !== next[i]?.id ||
+          prev[i]?.totalMiles !== next[i]?.totalMiles ||
+          prev[i]?.isActive !== next[i]?.isActive
+        ) {
           return next;
         }
       }
-      return prev; // no changes
+      return prev; // unchanged
     });
   }, []);
 
-  const loadTrips = useCallback(async () => {
+  // Load trips; `silent` avoids flipping the full-screen spinner after first load
+  const loadTrips = useCallback(async (silent = false) => {
     if (inFlight.current) return;
     inFlight.current = true;
-    if (mounted.current) setIsLoading(true);
+
+    if (!hasLoadedOnce.current && !silent) {
+      setIsBootstrapping(true);
+    }
+
     try {
       const tripsData = await getAllTrips();
       if (mounted.current && Array.isArray(tripsData)) {
         applyTripsIfChanged(tripsData);
       }
+      hasLoadedOnce.current = true;
     } catch (error) {
       console.error('Error loading trips:', error);
       if (mounted.current) applyTripsIfChanged([]);
     } finally {
       inFlight.current = false;
-      if (mounted.current) setIsLoading(false);
+      if (!silent && mounted.current) {
+        setIsBootstrapping(false);
+      }
     }
   }, [applyTripsIfChanged]);
 
-  // Debounced trigger (coalesces multiple onTripUpdate calls)
+  // Debounced trigger (coalesces multiple TripTracker updates)
   const triggerLoadTripsDebounced = useCallback(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
-      if (mounted.current) loadTrips();
-    }, 300);
+      if (mounted.current) loadTrips(true /* silent refresh */);
+    }, 500);
   }, [loadTrips]);
 
-  // Refresh when the tab gains focus
+  // First mount: do a normal (non-silent) load
+  useEffect(() => {
+    loadTrips(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // When tab gains focus, refresh silently (no spinner)
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      (async () => {
-        if (!cancelled) await loadTrips();
-      })();
+      loadTrips(true);
       return () => {
-        cancelled = true;
         if (debounceTimer.current) {
           clearTimeout(debounceTimer.current);
           debounceTimer.current = null;
@@ -86,7 +101,8 @@ export default function TripScreen() {
           onPress: async () => {
             try {
               await deleteTripFromDb(tripId);
-              triggerLoadTripsDebounced();
+              // silent refresh after delete
+              loadTrips(true);
             } catch (error) {
               console.error('Error deleting trip:', error);
               Alert.alert('Error', 'Failed to delete trip');
@@ -95,9 +111,9 @@ export default function TripScreen() {
         },
       ]
     );
-  }, [triggerLoadTripsDebounced]);
+  }, [loadTrips]);
 
-  if (isLoading) {
+  if (isBootstrapping) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Loading trips...</Text>
@@ -121,7 +137,7 @@ export default function TripScreen() {
         <Text style={styles.subtitle}>Manage your trips and routes</Text>
       </View>
 
-      {/* Debounced refresh when TripTracker reports updates */}
+      {/* IMPORTANT: Only this screen controls the tracker */}
       <TripTracker onTripUpdate={triggerLoadTripsDebounced} />
 
       <View style={styles.tripsContainer}>
