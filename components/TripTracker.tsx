@@ -1,350 +1,162 @@
-import React, { useState, useEffect, useRef } from 'react';
+// components/TripTracker.tsx
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { Play, Square, MapPin, Navigation } from 'lucide-react-native';
-import { Trip } from '@/types';
-import { getCurrentLocation, reverseGeocode } from '@/utils/location';
-import { insertTrip, getActiveTrip } from '@/utils/database';
-import { tripTracker } from '@/utils/tripTracking';
+import { Play, Square } from 'lucide-react-native';
+import { requestLocationPermissions, getCurrentLocation, reverseGeocode, getStateFromCoords } from '@/utils/location';
+import { getActiveTrip, insertTrip, updateTrip } from '@/utils/database';
+import type { Trip } from '@/types';
 
-interface TripTrackerProps {
-  onTripUpdate?: (trip: Trip | null) => void;
-}
+type Props = {
+  onTripUpdate?: () => void;
+};
 
-export default function TripTracker({ onTripUpdate }: TripTrackerProps) {
-  const [isTracking, setIsTracking] = useState(false);
-  const [currentTrip, setCurrentTrip] = useState<Trip | null>(null);
-  const [currentLocation, setCurrentLocation] = useState<string>('');
-  const [totalMiles, setTotalMiles] = useState(0);
-  const [currentState, setCurrentState] = useState<string>('');
-  const mounted = useRef(false);
+export default function TripTracker({ onTripUpdate }: Props) {
+  const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
+  const mounted = useRef(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     mounted.current = true;
-    checkActiveTrip();
-    updateCurrentLocation();
-    
-    // Check if trip tracker is already running
-    setIsTracking(tripTracker.isCurrentlyTracking());
-    
+    (async () => {
+      const t = await getActiveTrip();
+      if (mounted.current) setActiveTrip(t);
+    })();
     return () => {
       mounted.current = false;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
 
-  const checkActiveTrip = async () => {
-    try {
-      const activeTrip = await getActiveTrip();
-      if (activeTrip && mounted.current) {
-        setCurrentTrip(activeTrip);
-        setTotalMiles(activeTrip.totalMiles);
-        setIsTracking(tripTracker.isCurrentlyTracking());
-        onTripUpdate?.(activeTrip);
-      }
-    } catch (error) {
-      console.error('Error checking active trip:', error);
-    }
-  };
+  const notifyParent = useCallback(() => {
+    if (!onTripUpdate) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onTripUpdate?.();
+    }, 300);
+  }, [onTripUpdate]);
 
-  const updateCurrentLocation = async () => {
+  const handleStart = useCallback(async () => {
     try {
-      const coords = await getCurrentLocation();
-      if (coords && mounted.current) {
-        const address = await reverseGeocode(coords);
-        setCurrentLocation(address);
-        
-        // Get current state
-        const { getStateFromCoords } = await import('@/utils/location');
-        const state = await getStateFromCoords(coords);
-        setCurrentState(state);
-      }
-    } catch (error) {
-      console.error('Error updating location:', error);
-    }
-  };
-
-  const startTrip = async () => {
-    try {
-      const coords = await getCurrentLocation();
-      if (!coords) {
-        Alert.alert('Error', 'Unable to get current location. Please check your GPS settings.');
+      const ok = await requestLocationPermissions();
+      if (!ok) {
+        Alert.alert('Permission', 'Location permission is required to start a trip.');
         return;
       }
 
-      const address = await reverseGeocode(coords);
-      const tripId = `trip_${Date.now()}`;
-      
+      // Capture start location (best effort)
+      const coords = await getCurrentLocation();
+      let address = 'Unknown';
+      let state = 'Unknown';
+      if (coords) {
+        address = await reverseGeocode(coords);
+        state = await getStateFromCoords(coords);
+      }
+
+      const nowIso = new Date().toISOString();
       const newTrip: Trip = {
-        id: tripId,
-        startDate: new Date().toISOString(),
+        // id intentionally omitted (DB will generate)
+        // @ts-ignore
+        id: undefined as any,
+        startDate: nowIso,
+        endDate: undefined,
+        isActive: true,
+        totalMiles: 0,
         startLocation: {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
+          latitude: coords?.latitude ?? 0,
+          longitude: coords?.longitude ?? 0,
           address,
+          // @ts-ignore
+          state,
         },
+        endLocation: undefined,
         points: [],
         milesByState: {},
-        totalMiles: 0,
-        isActive: true,
+        notes: null,
       };
 
-      // Insert trip into database
-      await insertTrip(newTrip);
-      
-      // Start GPS tracking
-      await tripTracker.startTrip(newTrip);
-      
-      if (mounted.current) {
-        setCurrentTrip(newTrip);
-        setIsTracking(true);
-        setTotalMiles(0);
-        onTripUpdate?.(newTrip);
-      }
+      const newId = await insertTrip(newTrip);
+      const fresh = await getActiveTrip();
+      if (mounted.current) setActiveTrip(fresh);
 
-      Alert.alert(
-        'Trip Started', 
-        `GPS tracking started from ${address}. The app will automatically log your route and calculate miles by state.`,
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error('Error starting trip:', error);
-      Alert.alert('Error', 'Failed to start trip tracking. Please try again.');
+      notifyParent();
+    } catch (e: any) {
+      console.error('Error starting trip:', e);
+      Alert.alert('Error', e?.message ?? 'Failed to start trip');
     }
-  };
+  }, [notifyParent]);
 
-  const stopTrip = async () => {
+  const handleStop = useCallback(async () => {
     try {
-      if (!currentTrip) return;
-
-      Alert.alert(
-        'Stop Trip',
-        'Are you sure you want to stop tracking this trip?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Stop Trip',
-            style: 'default',
-            onPress: async () => {
-              try {
-                // Stop GPS tracking
-                const completedTrip = await tripTracker.stopTrip();
-                
-                if (mounted.current) {
-                  setCurrentTrip(null);
-                  setIsTracking(false);
-                  setTotalMiles(0);
-                  onTripUpdate?.(null);
-                }
-
-                // Get final trip data for display
-                const finalTrip = getActiveTrip();
-                const miles = finalTrip?.totalMiles || 0;
-                const stateCount = Object.keys(finalTrip?.milesByState || {}).length;
-
-                Alert.alert(
-                  'Trip Completed', 
-                  `Trip completed successfully`,
-                  [{ text: 'OK' }]
-                );
-              } catch (error) {
-                console.error('Error stopping trip:', error);
-                Alert.alert('Error', 'Failed to stop trip tracking properly.');
-              }
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('Error stopping trip:', error);
-      Alert.alert('Error', 'Failed to stop trip tracking');
-    }
-  };
-
-  // Update miles display periodically when tracking
-  useEffect(() => {
-    if (!isTracking || !currentTrip) return;
-
-    let inFlight = false;
-    
-    const poll = async () => {
-      if (inFlight) return;
-      inFlight = true;
-      try {
-        const activeTrip = await getActiveTrip();
-        if (activeTrip && mounted.current) {
-          setTotalMiles(activeTrip.totalMiles ?? 0);
-        }
-      } catch (error) {
-        console.error('Error polling active trip:', error);
-      } finally {
-        inFlight = false;
+      const current = await getActiveTrip();
+      if (!current) {
+        Alert.alert('Info', 'No active trip to stop.');
+        return;
       }
-    };
 
-    // Initial poll, then set interval
-    poll();
-    const interval = setInterval(poll, 10000); // Update every 10 seconds
+      const endIso = new Date().toISOString();
+      await updateTrip(current.id, {
+        isActive: false,
+        endDate: endIso,
+        // If you also want to write final total miles here, pass totalMiles too
+      });
 
-    return () => clearInterval(interval);
-  }, [isTracking, currentTrip]);
+      const fresh = await getActiveTrip(); // should be null after stop
+      if (mounted.current) setActiveTrip(fresh);
+
+      notifyParent();
+    } catch (e: any) {
+      console.error('Error stopping trip:', e);
+      Alert.alert('Error', e?.message ?? 'Failed to stop trip');
+    }
+  }, [notifyParent]);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.statusContainer}>
-        <View style={styles.statusHeader}>
-          <Navigation size={24} color={isTracking ? '#10B981' : '#6B7280'} />
-          <Text style={styles.statusText}>
-            {isTracking ? 'GPS Tracking Active' : 'No Active Trip'}
-          </Text>
-        </View>
-        
-        {currentLocation && (
-          <View style={styles.locationContainer}>
-            <MapPin size={16} color="#9CA3AF" />
-            <Text style={styles.locationText}>{currentLocation}</Text>
-          </View>
-        )}
-        
-        {currentState ? (
-          <Text style={styles.stateText}>Current State: {currentState}</Text>
-        ) : null}
-        
-        {isTracking && (
-          <View style={styles.milesContainer}>
-            <Text style={styles.milesLabel}>Total Miles</Text>
-            <Text style={styles.milesValue}>{totalMiles.toFixed(2)}</Text>
-            
-            {currentTrip && Object.keys(currentTrip.milesByState).length > 0 && (
-              <View style={styles.stateBreakdown}>
-                <Text style={styles.breakdownTitle}>Miles by State:</Text>
-                {Object.entries(currentTrip.milesByState)
-                  .sort(([,a], [,b]) => b - a)
-                  .slice(0, 3)
-                  .map(([state, miles]) => (
-                    <Text key={state} style={styles.breakdownItem}>
-                      {state}: {miles.toFixed(1)} mi
-                    </Text>
-                  ))}
-              </View>
-            )}
-          </View>
-        )}
+    <View style={styles.card}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.title}>Trip Tracker</Text>
+        <Text style={styles.status}>
+          {activeTrip?.isActive
+            ? `Running since ${new Date(activeTrip.startDate).toLocaleString()}`
+            : 'Not running'}
+        </Text>
       </View>
-
-      <TouchableOpacity
-        style={[styles.trackingButton, isTracking ? styles.stopButton : styles.startButton]}
-        onPress={isTracking ? stopTrip : startTrip}
-      >
-        {isTracking ? (
-          <Square size={24} color="#FFFFFF" fill="#FFFFFF" />
-        ) : (
-          <Play size={24} color="#FFFFFF" fill="#FFFFFF" />
-        )}
-        <Text style={styles.buttonText}>
-          {isTracking ? 'Stop Trip' : 'Start Trip'}
-        </Text>
-      </TouchableOpacity>
-      
-      {isTracking && (
-        <Text style={styles.trackingNote}>
-          GPS tracking is active. Miles and states are being logged automatically.
-        </Text>
+      {activeTrip?.isActive ? (
+        <TouchableOpacity style={[styles.btn, styles.stop]} onPress={handleStop}>
+          <Square size={16} color="#fff" />
+          <Text style={styles.btnText}>Stop</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity style={[styles.btn, styles.start]} onPress={handleStart}>
+          <Play size={16} color="#fff" />
+          <Text style={styles.btnText}>Start</Text>
+        </TouchableOpacity>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     backgroundColor: '#1F2937',
     borderRadius: 12,
-    padding: 20,
+    padding: 16,
+    marginHorizontal: 16,
     marginBottom: 16,
-  },
-  statusContainer: {
-    marginBottom: 20,
-  },
-  statusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 12,
   },
-  statusText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  locationContainer: {
+  title: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  status: { color: '#9CA3AF', fontSize: 12, marginTop: 2 },
+  btn: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 32,
-    marginBottom: 4,
-  },
-  locationText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    marginLeft: 6,
-    flex: 1,
-  },
-  stateText: {
-    color: '#3B82F6',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 32,
-  },
-  milesContainer: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  milesLabel: {
-    color: '#9CA3AF',
-    fontSize: 14,
-  },
-  milesValue: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginTop: 4,
-  },
-  stateBreakdown: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  breakdownTitle: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  breakdownItem: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  trackingButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 8,
     gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
-  startButton: {
-    backgroundColor: '#10B981',
-  },
-  stopButton: {
-    backgroundColor: '#DC2626',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  trackingNote: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
+  start: { backgroundColor: '#10B981' },
+  stop: { backgroundColor: '#DC2626' },
+  btnText: { color: '#fff', fontWeight: '600' },
 });
