@@ -9,7 +9,6 @@ import { canExport, daysLeft, ensureTrialStart } from '@/utils/trial';
 import { formatDistance, formatVolume, formatEfficiency } from '@/utils/units';
 import ExportButtons from '@/components/ExportButtons';
 import { getUnit } from '@/utils/prefs';
-import { getUnit } from '@/utils/prefs';
 
 function getQuarterRange(year: number, q: number) {
   const m0 = (q - 1) * 3;
