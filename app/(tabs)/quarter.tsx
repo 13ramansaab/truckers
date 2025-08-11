@@ -2,19 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { FileText, Download, TrendingUp, DollarSign, Calculator } from 'lucide-react-native';
 import { getQuarterTrips, getQuarterFuelPurchases, getTaxRatesSnapshot } from '@/utils/database';
-import { computeQuarterIFTA, bucketMilesByState } from '@/utils/ifta';
-import { canExport, getRemainingTrialDays, initializeTrial } from '@/utils/trial';
-import { UnitSystem, formatDistance, formatVolume, formatEfficiency } from '@/utils/units';
+import { computeIFTA, bucketMilesByState } from '@/utils/ifta';
+import { canExport, daysLeft, ensureTrialStart } from '@/utils/trial';
+import { formatDistance, formatVolume, formatEfficiency } from '@/utils/units';
 import ExportButtons from '@/components/ExportButtons';
-import type { Trip, FuelPurchase } from '@/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+function getQuarterRange(year: number, q: number) {
+  const m0 = (q - 1) * 3;
+  const start = new Date(Date.UTC(year, m0, 1));
+  const end = new Date(Date.UTC(year, m0 + 3, 0, 23, 59, 59, 999));
+  return { start, end };
+}
 
 export default function QuarterScreen() {
   const [quarterData, setQuarterData] = useState<any>(null);
   const [selectedQuarter, setSelectedQuarter] = useState(1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [unitSystem, setUnitSystem] = useState<UnitSystem>('us');
+  const [unitSystem, setUnitSystem] = useState<'us' | 'metric'>('us');
   const [canExportData, setCanExportData] = useState(false);
-  const [remainingTrialDays, setRemainingTrialDays] = useState(0);
+  const [trialDaysLeft, setTrialDaysLeft] = useState(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -26,11 +33,18 @@ export default function QuarterScreen() {
   }, []);
 
   const initializeApp = async () => {
-    await initializeTrial();
+    await ensureTrialStart();
     const canExportStatus = await canExport();
-    const trialDays = await getRemainingTrialDays();
+    const trialDays = await daysLeft();
+    
+    // Load unit system from settings
+    const savedUnitSystem = await AsyncStorage.getItem('settings.unitSystem');
+    if (savedUnitSystem) {
+      setUnitSystem(savedUnitSystem as 'us' | 'metric');
+    }
+    
     setCanExportData(canExportStatus);
-    setRemainingTrialDays(trialDays);
+    setTrialDaysLeft(trialDays);
     generateReport(selectedQuarter, selectedYear);
   };
 
@@ -44,28 +58,52 @@ export default function QuarterScreen() {
       // Aggregate miles by state from trips
       const milesByState: Record<string, number> = {};
       trips.forEach(trip => {
-        Object.entries(trip.milesByState || {}).forEach(([state, miles]) => {
-          milesByState[state] = (milesByState[state] || 0) + miles;
-        });
+        // Use trip.totalMiles and trip.startLocation.state as fallback
+        if (trip.milesByState && Object.keys(trip.milesByState).length > 0) {
+          Object.entries(trip.milesByState).forEach(([state, miles]) => {
+            milesByState[state] = (milesByState[state] || 0) + miles;
+          });
+        } else if (trip.totalMiles > 0) {
+          // Fallback: use start location state or Unknown
+          const state = (trip.startLocation as any)?.state || 'Unknown';
+          milesByState[state] = (milesByState[state] || 0) + trip.totalMiles;
+        }
       });
       
       // Aggregate fuel by state
       const fuelByState: Record<string, number> = {};
-      const fuelCostByState: Record<string, number> = {};
-      let totalFuelCost = 0;
+      const taxIncludedByState: Record<string, { gallons: number; rate: number }[]> = {};
       
       fuelEntries.forEach(fuel => {
         fuelByState[fuel.state] = (fuelByState[fuel.state] || 0) + fuel.gallons;
-        fuelCostByState[fuel.state] = (fuelCostByState[fuel.state] || 0) + fuel.total_cost;
-        totalFuelCost += fuel.total_cost;
+        
+        // Track tax-included purchases for tax paid at pump calculation
+        if (fuel.taxIncludedAtPump) {
+          if (!taxIncludedByState[fuel.state]) {
+            taxIncludedByState[fuel.state] = [];
+          }
+          taxIncludedByState[fuel.state].push({
+            gallons: fuel.gallons,
+            rate: taxRates[fuel.state] || 0
+          });
+        }
       });
       
-      // Compute IFTA results
-      const iftaResult = computeQuarterIFTA({
+      // Calculate tax paid at pump per state
+      const taxPaidAtPumpByState: Record<string, number> = {};
+      Object.entries(taxIncludedByState).forEach(([state, purchases]) => {
+        taxPaidAtPumpByState[state] = purchases.reduce((sum, p) => sum + (p.gallons * p.rate), 0);
+      });
+      
+      // Compute IFTA results  
+      const iftaResult = computeIFTA({
         milesByState,
         fuelByState,
-        ratesByState: taxRates,
+        ratesByState: taxRates
       });
+      
+      // Calculate total fuel cost
+      const totalFuelCost = fuelEntries.reduce((sum, fuel) => sum + fuel.totalCost, 0);
       
       setQuarterData({
         quarter,
@@ -76,7 +114,7 @@ export default function QuarterScreen() {
           state,
           ...data,
           fuelPurchased: fuelByState[state] || 0,
-          fuelCost: fuelCostByState[state] || 0,
+          fleetMPG: iftaResult.fleetMPG,
           taxRate: taxRates[state] || 0,
         })).sort((a, b) => b.miles - a.miles),
       });
@@ -89,139 +127,21 @@ export default function QuarterScreen() {
   };
 
   const handleDisabledExport = () => {
-    if (remainingTrialDays > 0) {
+    if (trialDaysLeft > 0) {
       Alert.alert(
         'Trial Active',
-        `You have ${remainingTrialDays} days remaining in your free trial.`,
+        `You have ${trialDaysLeft} days remaining in your free trial.`,
         [{ text: 'OK' }]
       );
     } else {
       Alert.alert(
-        'Subscription Required',
-        'Your free trial has expired. Please subscribe to continue exporting reports.',
+        'Export Unavailable',
+        'Export is available during 14-day trial or with a subscription.',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Subscribe', onPress: () => {
-            // TODO: Navigate to subscription screen
-            Alert.alert('Coming Soon', 'Subscription feature will be available soon.');
-          }},
+          { text: 'OK' }
         ]
       );
-    }
-  };
-
-  const generateCSVData = (): string => {
-    if (!quarterData) return '';
-    
-    const headers = [
-      'Quarter', 'Year', 'State', 'Miles', 'Gallons Purchased', 
-      'Fleet MPG', 'Taxable Gallons', 'Tax Rate', 'Tax Paid At Pump', 'Liability'
-    ];
-    
-    const rows = quarterData.stateBreakdown.map((state: any) => [
-      quarterData.quarter,
-      quarterData.year,
-      state.state,
-      state.miles.toFixed(2),
-      state.fuelPurchased?.toFixed(2) || '0.00',
-      quarterData.fleetMPG.toFixed(2),
-      state.taxableGallons.toFixed(2),
-      state.taxRate.toFixed(3),
-      state.taxPaidAtPump.toFixed(2),
-      state.liability.toFixed(2),
-    ]);
-    
-    // Add totals row
-    rows.push([
-      'TOTAL',
-      '',
-      '',
-      quarterData.totalMiles.toFixed(2),
-      quarterData.totalGallons.toFixed(2),
-      quarterData.fleetMPG.toFixed(2),
-      '',
-      '',
-      '',
-      quarterData.netLiability.toFixed(2),
-    ]);
-    
-    return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-  };
-
-  const generatePDFData = (): string => {
-    if (!quarterData) return '';
-    
-    try {
-      const stateRows = quarterData.stateBreakdown.map((state: any) => `
-        <tr>
-          <td>${state.state}</td>
-          <td>${state.miles.toFixed(2)}</td>
-          <td>${(state.fuelPurchased || 0).toFixed(2)}</td>
-          <td>${quarterData.fleetMPG.toFixed(2)}</td>
-          <td>${state.taxableGallons.toFixed(2)}</td>
-          <td>$${state.taxRate.toFixed(3)}</td>
-          <td>$${state.taxPaidAtPump.toFixed(2)}</td>
-          <td>$${state.liability.toFixed(2)}</td>
-        </tr>
-      `).join('');
-      
-      return `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>IFTA Quarter Summary</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .totals { background: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 5px; }
-            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .footer { margin-top: 30px; font-size: 12px; color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>IFTA Quarter Summary – Q${quarterData.quarter} ${quarterData.year}</h1>
-            <p>Unit System: ${unitSystem.toUpperCase()} | Generated: ${new Date().toLocaleString()}</p>
-          </div>
-          
-          <div class="totals">
-            <h3>Summary Totals</h3>
-            <p><strong>Total Miles:</strong> ${formatDistance(quarterData.totalMiles, unitSystem)}</p>
-            <p><strong>Total Gallons:</strong> ${formatVolume(quarterData.totalGallons, unitSystem)}</p>
-            <p><strong>Fleet MPG:</strong> ${formatEfficiency(quarterData.fleetMPG, unitSystem)}</p>
-            <p><strong>Net Liability:</strong> $${quarterData.netLiability.toFixed(2)}</p>
-          </div>
-          
-          <table>
-            <thead>
-              <tr>
-                <th>State</th>
-                <th>Miles</th>
-                <th>Gallons Purchased</th>
-                <th>Fleet MPG</th>
-                <th>Taxable Gallons</th>
-                <th>Tax Rate</th>
-                <th>Tax Paid At Pump</th>
-                <th>Liability</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${stateRows}
-            </tbody>
-          </table>
-          
-          <div class="footer">
-            <p>All distances computed with Haversine; state detection via reverse-geocoding (approx).</p>
-          </div>
-        </body>
-        </html>
-      `;
-    } catch (error) {
-      console.error('Error generating PDF data:', error);
-      return '';
     }
   };
 
@@ -334,8 +254,8 @@ export default function QuarterScreen() {
             <View style={styles.taxBreakdownHeader}>
               <Text style={styles.sectionTitle}>Tax Breakdown</Text>
               <ExportButtons
-                csvData={generateCSVData()}
-                pdfData={generatePDFData()}
+                rows={quarterData.stateBreakdown}
+                unitSystem={unitSystem}
                 disabled={!canExportData}
                 onDisabledPress={handleDisabledExport}
                 quarter={selectedQuarter}

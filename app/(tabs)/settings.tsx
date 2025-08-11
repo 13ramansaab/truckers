@@ -1,21 +1,18 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Linking } from 'react-native';
 import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone } from 'lucide-react-native';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '@/utils/supabase';
-import { loadUnitSystem, saveUnitSystem, UnitSystem } from '@/utils/units';
-import { daysLeft, isTrialActive, isSubscribed, canExport } from '@/utils/trial';
+import { daysLeft, isTrialActive, isSubscribed, ensureTrialStart } from '@/utils/trial';
 import { requestLocationPermissions } from '@/utils/location';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
+import { Platform } from 'react-native';
 
 export default function SettingsScreen() {
   const [autoStartTrips, setAutoStartTrips] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [highAccuracy, setHighAccuracy] = useState(true);
-  const [unitSystem, setUnitSystem] = useState<UnitSystem>('us');
+  const [unitSystem, setUnitSystem] = useState<'us' | 'metric'>('us');
   const [trialDaysLeft, setTrialDaysLeft] = useState(0);
   const [trialActive, setTrialActive] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
@@ -30,12 +27,13 @@ export default function SettingsScreen() {
 
   const loadSettings = async () => {
     try {
-      const savedUnitSystem = await loadUnitSystem();
+      await ensureTrialStart();
+      const savedUnitSystem = await AsyncStorage.getItem('settings.unitSystem');
       const remainingDays = await daysLeft();
       const isActive = await isTrialActive();
       const isSub = await isSubscribed();
       
-      setUnitSystem(savedUnitSystem);
+      setUnitSystem((savedUnitSystem as 'us' | 'metric') || 'us');
       setTrialDaysLeft(remainingDays);
       setTrialActive(isActive);
       setSubscribed(isSub);
@@ -44,9 +42,9 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleUnitSystemChange = async (newUnitSystem: UnitSystem) => {
+  const handleUnitSystemChange = async (newUnitSystem: 'us' | 'metric') => {
     setUnitSystem(newUnitSystem);
-    await saveUnitSystem(newUnitSystem);
+    await AsyncStorage.setItem('settings.unitSystem', newUnitSystem);
   };
 
   const requestLocationPermission = async () => {
@@ -65,7 +63,11 @@ export default function SettingsScreen() {
 
   const openOSSettings = async () => {
     try {
-      await Linking.openSettings();
+      if (Platform.OS !== 'web') {
+        await Linking.openSettings();
+      } else {
+        Alert.alert('Info', 'Settings not available on web platform');
+      }
     } catch (error) {
       console.error('Error opening OS settings:', error);
       Alert.alert('Error', 'Could not open system settings');
@@ -86,7 +88,7 @@ export default function SettingsScreen() {
               // Clear settings and trial data
               await AsyncStorage.multiRemove([
                 'settings.unitSystem',
-                'trialStartedAt'
+                'trial.startedAt'
               ]);
               
               // Reset to defaults
@@ -105,48 +107,10 @@ export default function SettingsScreen() {
     );
   };
 
-  const exportAllData = async () => {
-    try {
-      Alert.alert('Export Data', 'Exporting all data to CSV...', [{ text: 'OK' }]);
-      
-      // For now, just show a placeholder
-      Alert.alert('Success', 'Data export feature will be implemented in a future update');
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      Alert.alert('Error', 'Failed to export data');
-    }
-  };
-
-  const clearAllData = () => {
-    Alert.alert(
-      'Clear All Data',
-      'This will permanently delete all trips, fuel entries, and settings. This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete All',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Clear all tables in Supabase
-              // This will be implemented when Supabase tables are set up
-              console.log('Clear data functionality will be available when database is configured');
-              
-              Alert.alert('Info', 'Data clearing will be available when database is configured');
-            } catch (error) {
-              console.error('Error clearing data:', error);
-              Alert.alert('Error', 'Failed to clear data');
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const showAbout = () => {
     Alert.alert(
       'About Trucker Fuel Tax Calculator',
-      'Version 1.0\n\nA comprehensive app for owner-operators to track trips, log fuel purchases, and calculate IFTA tax obligations.\n\nFeatures:\n• GPS trip tracking\n• Fuel purchase logging\n• Automatic tax calculations\n• Quarterly reporting\n• Data export capabilities',
+      `Version ${appVersion}\n\nA comprehensive app for owner-operators to track trips, log fuel purchases, and calculate IFTA tax obligations.\n\nFeatures:\n• GPS trip tracking\n• Fuel purchase logging\n• Automatic tax calculations\n• Quarterly reporting\n• Data export capabilities`,
       [{ text: 'OK' }]
     );
   };
@@ -267,35 +231,11 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Data Management</Text>
         
-        <TouchableOpacity style={styles.actionButton} onPress={exportAllData}>
-          <Download size={20} color="#3B82F6" />
-          <View style={styles.actionInfo}>
-            <Text style={styles.actionLabel}>Export All Data</Text>
-            <Text style={styles.actionDescription}>Download trips and fuel data as CSV</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionButton}>
-          <Upload size={20} color="#10B981" />
-          <View style={styles.actionInfo}>
-            <Text style={styles.actionLabel}>Import Data</Text>
-            <Text style={styles.actionDescription}>Import data from backup file</Text>
-          </View>
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.actionButton} onPress={clearCache}>
           <Database size={20} color="#F59E0B" />
           <View style={styles.actionInfo}>
             <Text style={styles.actionLabel}>Clear Cache</Text>
             <Text style={styles.actionDescription}>Clear app preferences and trial data</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionButton} onPress={clearAllData}>
-          <Trash2 size={20} color="#DC2626" />
-          <View style={styles.actionInfo}>
-            <Text style={styles.actionLabel}>Clear All Data</Text>
-            <Text style={styles.actionDescription}>Permanently delete all app data</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -308,14 +248,6 @@ export default function SettingsScreen() {
           <View style={styles.actionInfo}>
             <Text style={styles.actionLabel}>About</Text>
             <Text style={styles.actionDescription}>App version and information</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionButton}>
-          <SettingsIcon size={20} color="#F59E0B" />
-          <View style={styles.actionInfo}>
-            <Text style={styles.actionLabel}>Help & Support</Text>
-            <Text style={styles.actionDescription}>Get help and contact support</Text>
           </View>
         </TouchableOpacity>
       </View>
