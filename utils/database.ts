@@ -1,16 +1,12 @@
+// utils/database.ts
 import { supabase } from './supabase';
 import { Trip, FuelPurchase, LocationPoint } from '@/types';
 import { getCurrentLocation, reverseGeocode, getStateFromCoords } from '@/utils/location';
 
-
 // Initialize database - check connection
 export const initializeDatabase = async () => {
   try {
-    const { data, error } = await supabase
-      .from('trips')
-      .select('id')
-      .limit(1);
-    
+    const { data, error } = await supabase.from('trips').select('id').limit(1);
     if (error) {
       console.warn('Database connection issue:', error.message);
     } else {
@@ -21,14 +17,47 @@ export const initializeDatabase = async () => {
   }
 };
 
+/**
+ * Helper to map a DB row -> Trip domain object
+ */
+const mapDbTripToDomain = (row: any): Trip => {
+  const startedAtIso =
+    row.started_at ??
+    (row.start_date ? `${row.start_date}T00:00:00.000Z` : null);
+  const endedAtIso =
+    row.ended_at ??
+    (row.end_date ? `${row.end_date}T00:00:00.000Z` : undefined);
+
+  return {
+    id: row.id,
+    startDate: startedAtIso || new Date().toISOString(),
+    endDate: endedAtIso || undefined,
+    startLocation: {
+      latitude: row.start_lat ? Number(row.start_lat) : 0,
+      longitude: row.start_lng ? Number(row.start_lng) : 0,
+      address: row.start_address || 'Unknown',
+      // @ts-ignore (keep shape flexible)
+      state: row.start_state || undefined,
+    },
+    endLocation: undefined, // not stored yet
+    points: [],
+    milesByState: {},
+    totalMiles: row.total_miles ?? 0,
+    isActive: !!row.is_active,
+    notes: row.name || null,
+  };
+};
+
 // Trip operations
 export const insertTrip = async (trip: Trip) => {
   try {
-   // capture start location if missing
+    // Capture start location if caller didn’t supply it
     let start_lat = trip.startLocation?.latitude ?? null;
     let start_lng = trip.startLocation?.longitude ?? null;
     let start_address = trip.startLocation?.address ?? null;
-    let start_state: string | null = (trip as any).startLocation?.state ?? null;
+    // @ts-ignore
+    let start_state: string | null = trip.startLocation?.state ?? null;
+
     if (start_lat == null || start_lng == null || !start_address) {
       const coords = await getCurrentLocation();
       if (coords) {
@@ -38,17 +67,19 @@ export const insertTrip = async (trip: Trip) => {
         start_state = await getStateFromCoords(coords);
       }
     }
-    
+
+    const started_at = trip.startDate ?? new Date().toISOString();
+    const ended_at = trip.endDate ?? null;
+
+    // IMPORTANT: let Postgres generate UUID (id) by NOT sending id here.
     const payload: any = {
-      // if DB autogenerates id, omit this next line
-      id: trip.id,
       name: trip.notes || null,
-        // keep old date column for compatibility…
-      start_date: trip.startDate ? trip.startDate.split('T')[0] : new Date().toISOString().split('T')[0],
+      // keep legacy date columns for compatibility
+      start_date: (trip.startDate ?? new Date().toISOString()).split('T')[0],
       end_date: trip.endDate ? trip.endDate.split('T')[0] : null,
-      // …but also store the full timestamp
-     started_at: trip.startDate ?? new Date().toISOString(),
-      ended_at: trip.endDate ?? null,
+      // full timestamps
+      started_at,
+      ended_at,
       is_active: trip.isActive,
       total_miles: trip.totalMiles ?? 0,
       // start location
@@ -57,7 +88,12 @@ export const insertTrip = async (trip: Trip) => {
       start_address,
       start_state,
     };
-   const { error } = await supabase.from('trips').insert(payload);
+
+    const { data, error } = await supabase
+      .from('trips')
+      .insert(payload)
+      .select('id')
+      .single();
 
     if (error) throw error;
     return data?.id as string | undefined;
@@ -73,6 +109,7 @@ export const getActiveTrip = async (): Promise<Trip | null> => {
       .from('trips')
       .select('*')
       .eq('is_active', true)
+      .order('started_at', { ascending: false })
       .order('start_date', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -83,24 +120,7 @@ export const getActiveTrip = async (): Promise<Trip | null> => {
     }
 
     if (!data) return null;
-
-    return {
-      id: data.id,
-      startDate: (data.started_at ?? (data.start_date ? (data.start_date + 'T00:00:00.000Z') : null)) || new Date().toISOString(),
-      endDate: data.ended_at ?? (data.end_date ? (data.end_date + 'T00:00:00.000Z') : undefined),
-      startLocation: {
-        latitude: data.start_lat ? Number(data.start_lat) : 0,
-        longitude: data.start_lng ? Number(data.start_lng) : 0,
-        address: data.start_address || 'Unknown',
-        state: data.start_state || 'Unknown',
-      },
-      endLocation: undefined,
-      points: [],
-      milesByState: {},
-      totalMiles: data.total_miles || 0,
-      isActive: data.is_active,
-      notes: data.name,
-    };
+    return mapDbTripToDomain(data);
   } catch (error) {
     console.error('Error fetching active trip:', error);
     return null;
@@ -112,6 +132,7 @@ export const getAllTrips = async (): Promise<Trip[]> => {
     const { data, error } = await supabase
       .from('trips')
       .select('*')
+      .order('started_at', { ascending: false })
       .order('start_date', { ascending: false });
 
     if (error) {
@@ -120,24 +141,7 @@ export const getAllTrips = async (): Promise<Trip[]> => {
     }
 
     if (!data) return [];
-
-    return data.map(trip => ({
-      id: trip.id,
-      startDate: (data.started_at ?? (data.start_date ? (data.start_date + 'T00:00:00.000Z') : null)) || new Date().toISOString(),
-      endDate: data.ended_at ?? (data.end_date ? (data.end_date + 'T00:00:00.000Z') : undefined),
-      startLocation: {
-        latitude: trip.start_lat ? Number(trip.start_lat) : 0,
-        longitude: trip.start_lng ? Number(trip.start_lng) : 0,
-        address: trip.start_address || 'Unknown',
-        state: data.start_state || 'Unknown',
-      },
-      endLocation: undefined,
-      points: [],
-      milesByState: {},
-      totalMiles: trip.total_miles || 0,
-      isActive: trip.is_active,
-      notes: trip.name,
-    }));
+    return data.map(mapDbTripToDomain);
   } catch (error) {
     console.error('Error fetching trips:', error);
     return [];
@@ -161,12 +165,20 @@ export const updateTrip = async (id: string, updates: Partial<Trip>) => {
     if (updates.totalMiles !== undefined) {
       updateData.total_miles = updates.totalMiles;
     }
+    if (updates.startLocation) {
+      if (updates.startLocation.latitude !== undefined)
+        updateData.start_lat = updates.startLocation.latitude;
+      if (updates.startLocation.longitude !== undefined)
+        updateData.start_lng = updates.startLocation.longitude;
+      if (updates.startLocation.address !== undefined)
+        updateData.start_address = updates.startLocation.address;
+      // @ts-ignore
+      if (updates.startLocation.state !== undefined)
+        // @ts-ignore
+        updateData.start_state = updates.startLocation.state;
+    }
 
-    const { error } = await supabase
-      .from('trips')
-      .update(updateData)
-      .eq('id', id);
-
+    const { error } = await supabase.from('trips').update(updateData).eq('id', id);
     if (error) throw error;
   } catch (error) {
     console.error('Error updating trip:', error);
@@ -176,11 +188,7 @@ export const updateTrip = async (id: string, updates: Partial<Trip>) => {
 
 export const deleteTripFromDb = async (tripId: string) => {
   try {
-    const { error } = await supabase
-      .from('trips')
-      .delete()
-      .eq('id', tripId);
-
+    const { error } = await supabase.from('trips').delete().eq('id', tripId);
     if (error) throw error;
   } catch (error) {
     console.error('Error deleting trip:', error);
@@ -191,18 +199,16 @@ export const deleteTripFromDb = async (tripId: string) => {
 // Fuel purchase operations
 export const insertFuelPurchase = async (fuel: FuelPurchase) => {
   try {
-    const { error } = await supabase
-      .from('fuel_purchases')
-      .insert({
-        id: fuel.id,
-        date: fuel.date.split('T')[0],
-        gallons: fuel.gallons,
-        price_per_gallon: fuel.pricePerGallon,
-        total_cost: fuel.totalCost,
-        state: fuel.state,
-        location: fuel.location,
-        tax_included: fuel.taxIncludedAtPump,
-      });
+    const { error } = await supabase.from('fuel_purchases').insert({
+      id: fuel.id, // if this is non-uuid, consider letting DB generate it too
+      date: fuel.date.split('T')[0],
+      gallons: fuel.gallons,
+      price_per_gallon: fuel.pricePerGallon,
+      total_cost: fuel.totalCost,
+      state: fuel.state,
+      location: fuel.location,
+      tax_included: fuel.taxIncludedAtPump,
+    });
 
     if (error) throw error;
   } catch (error) {
@@ -225,7 +231,7 @@ export const getAllFuelEntries = async (): Promise<FuelPurchase[]> => {
 
     if (!data) return [];
 
-    return data.map(purchase => ({
+    return data.map((purchase: any) => ({
       id: purchase.id,
       date: purchase.date + 'T00:00:00.000Z',
       state: purchase.state || 'Unknown',
@@ -244,11 +250,7 @@ export const getAllFuelEntries = async (): Promise<FuelPurchase[]> => {
 
 export const deleteFuelEntryFromDb = async (fuelId: string) => {
   try {
-    const { error } = await supabase
-      .from('fuel_purchases')
-      .delete()
-      .eq('id', fuelId);
-
+    const { error } = await supabase.from('fuel_purchases').delete().eq('id', fuelId);
     if (error) throw error;
   } catch (error) {
     console.error('Error deleting fuel entry:', error);
@@ -257,7 +259,10 @@ export const deleteFuelEntryFromDb = async (fuelId: string) => {
 };
 
 // Tax rate operations
-export const getTaxRate = async (state: string, date: string = new Date().toISOString()): Promise<number> => {
+export const getTaxRate = async (
+  state: string,
+  date: string = new Date().toISOString()
+): Promise<number> => {
   try {
     const { data, error } = await supabase
       .from('tax_rates')
@@ -280,13 +285,11 @@ export const getTaxRate = async (state: string, date: string = new Date().toISOS
   }
 };
 
-// Location point operations (simplified for now)
+// Location point operations (placeholder for future)
 export const insertLocationPoint = async (point: LocationPoint, tripId: string) => {
-  // For now, just log - we'll implement this when location_points table is added
   console.log('Location point logged:', point, tripId);
 };
 
-export const getTripLocationPoints = async (tripId: string): Promise<LocationPoint[]> => {
-  // Return empty array for now - implement when location_points table is added
+export const getTripLocationPoints = async (_tripId: string): Promise<LocationPoint[]> => {
   return [];
 };
