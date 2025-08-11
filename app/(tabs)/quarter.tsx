@@ -243,32 +243,32 @@ export default function QuarterScreen() {
             <View style={styles.summaryGrid}>
               <View style={styles.summaryCard}>
                 <TrendingUp size={24} color="#3B82F6" />
-                <Text style={styles.summaryValue}>{totals.miles.toFixed(0)}</Text>
+                <Text style={styles.summaryValue}>{(totals?.miles || 0).toFixed(0)}</Text>
                 <Text style={styles.summaryLabel}>Total Miles</Text>
               </View>
 
               <View style={styles.summaryCard}>
                 <DollarSign size={24} color="#10B981" />
-                <Text style={styles.summaryValue}>${quarterData.totalFuelCost.toFixed(0)}</Text>
+                <Text style={styles.summaryValue}>${(quarterData?.totalFuelCost || 0).toFixed(0)}</Text>
                 <Text style={styles.summaryLabel}>Fuel Cost</Text>
               </View>
 
               <View style={styles.summaryCard}>
                 <Calculator size={24} color="#F59E0B" />
-                <Text style={styles.summaryValue}>{totals.fleetMPG.toFixed(1)}</Text>
+                <Text style={styles.summaryValue}>{(totals?.fleetMPG || 0).toFixed(1)}</Text>
                 <Text style={styles.summaryLabel}>Avg MPG</Text>
               </View>
 
               <View style={styles.summaryCard}>
-                <DollarSign size={24} color={totals.net >= 0 ? '#DC2626' : '#10B981'} />
+                <DollarSign size={24} color={(totals?.net || 0) >= 0 ? '#DC2626' : '#10B981'} />
                 <Text style={[
                   styles.summaryValue,
-                  { color: totals.net >= 0 ? '#DC2626' : '#10B981' }
+                  { color: (totals?.net || 0) >= 0 ? '#DC2626' : '#10B981' }
                 ]}>
-                  ${Math.abs(totals.net).toFixed(2)}
+                  ${Math.abs(totals?.net || 0).toFixed(2)}
                 </Text>
                 <Text style={styles.summaryLabel}>
-                  {totals.net >= 0 ? 'Tax Owed' : 'Tax Refund'}
+                  {(totals?.net || 0) >= 0 ? 'Tax Owed' : 'Tax Refund'}
                 </Text>
               </View>
             </View>

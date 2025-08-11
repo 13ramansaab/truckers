@@ -256,6 +256,13 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
+      {__DEV__ && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Development Tools</Text>
+          <DevDataGenerator />
+        </View>
+      )}
+
       <View style={styles.footer}>
         <Text style={styles.footerText}>Trucker Fuel Tax Calculator</Text>
         <Text style={styles.footerSubtext}>Version {appVersion}</Text>
