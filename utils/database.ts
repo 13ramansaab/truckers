@@ -24,18 +24,40 @@ export const initializeDatabase = async () => {
 // Trip operations
 export const insertTrip = async (trip: Trip) => {
   try {
-  const payload: any = {
-     name: trip.notes || null,
-     start_date: trip.startDate.split('T')[0],
-     end_date: trip.endDate ? trip.endDate.split('T')[0] : null,
-     is_active: trip.isActive,
-     total_miles: trip.totalMiles ?? 0,
-   };
-   const { data, error } = await supabase
-     .from('trips')
-     .insert(payload)
-     .select('id')
-     .single();
+   // capture start location if missing
+    let start_lat = trip.startLocation?.latitude ?? null;
+    let start_lng = trip.startLocation?.longitude ?? null;
+    let start_address = trip.startLocation?.address ?? null;
+    let start_state: string | null = (trip as any).startLocation?.state ?? null;
+    if (start_lat == null || start_lng == null || !start_address) {
+      const coords = await getCurrentLocation();
+      if (coords) {
+        start_lat = coords.latitude;
+        start_lng = coords.longitude;
+        start_address = await reverseGeocode(coords);
+        start_state = await getStateFromCoords(coords);
+      }
+    }
+    
+    const payload: any = {
+      // if DB autogenerates id, omit this next line
+      id: trip.id,
+      name: trip.notes || null,
+        // keep old date column for compatibility…
+      start_date: trip.startDate ? trip.startDate.split('T')[0] : new Date().toISOString().split('T')[0],
+      end_date: trip.endDate ? trip.endDate.split('T')[0] : null,
+      // …but also store the full timestamp
+     started_at: trip.startDate ?? new Date().toISOString(),
+      ended_at: trip.endDate ?? null,
+      is_active: trip.isActive,
+      total_miles: trip.totalMiles ?? 0,
+      // start location
+      start_lat,
+      start_lng,
+      start_address,
+      start_state,
+    };
+   const { error } = await supabase.from('trips').insert(payload);
 
     if (error) throw error;
     return data?.id as string | undefined;
@@ -128,6 +150,7 @@ export const updateTrip = async (id: string, updates: Partial<Trip>) => {
 
     if (updates.endDate !== undefined) {
       updateData.end_date = updates.endDate ? updates.endDate.split('T')[0] : null;
+      updateData.ended_at = updates.endDate ?? null;
     }
     if (updates.isActive !== undefined) {
       updateData.is_active = updates.isActive;
