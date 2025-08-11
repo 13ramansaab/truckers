@@ -69,3 +69,6 @@ export const getRemainingTrialDays = async (): Promise<number> => {
     return 0;
   }
 };
+
+// Alias for consistency
+export const daysLeft = getRemainingTrialDays;

@@ -51,7 +51,7 @@ const mapDbTripToDomain = (row: any): Trip => {
 // Trip operations
 export const insertTrip = async (trip: Trip) => {
   try {
-    // Capture start location if caller didn’t supply it
+    // Capture start location if caller didn't supply it
     let start_lat = trip.startLocation?.latitude ?? null;
     let start_lng = trip.startLocation?.longitude ?? null;
     let start_address = trip.startLocation?.address ?? null;
@@ -199,8 +199,8 @@ export const deleteTripFromDb = async (tripId: string) => {
 // Fuel purchase operations
 export const insertFuelPurchase = async (fuel: FuelPurchase) => {
   try {
+    // Do not send id - let DB generate UUID
     const { error } = await supabase.from('fuel_purchases').insert({
-      id: fuel.id, // if this is non-uuid, consider letting DB generate it too
       date: fuel.date.split('T')[0],
       gallons: fuel.gallons,
       price_per_gallon: fuel.pricePerGallon,
@@ -208,6 +208,9 @@ export const insertFuelPurchase = async (fuel: FuelPurchase) => {
       state: fuel.state,
       location: fuel.location,
       tax_included: fuel.taxIncludedAtPump,
+      odometer: fuel.odometer || null,
+      receipt_path: fuel.receiptPhoto ? fuel.receiptPhoto : null,
+      receipt_url: fuel.receiptPhoto ? fuel.receiptPhoto : null,
     });
 
     if (error) throw error;
@@ -240,6 +243,8 @@ export const getAllFuelEntries = async (): Promise<FuelPurchase[]> => {
       totalCost: purchase.total_cost,
       taxIncludedAtPump: purchase.tax_included,
       location: purchase.location || 'Unknown',
+      odometer: purchase.odometer,
+      receiptPhoto: purchase.receipt_url,
       notes: null,
     }));
   } catch (error) {
@@ -343,6 +348,8 @@ export const getQuarterFuelPurchases = async (year: number, quarter: number): Pr
       totalCost: purchase.total_cost,
       taxIncludedAtPump: purchase.tax_included,
       location: purchase.location || 'Unknown',
+      odometer: purchase.odometer,
+      receiptPhoto: purchase.receipt_url,
       notes: null,
     }));
   } catch (error) {

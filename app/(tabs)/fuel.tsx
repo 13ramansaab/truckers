@@ -178,6 +178,18 @@ export default function FuelScreen() {
                   <Text style={styles.locationText}>{entry.location || 'Unknown'}</Text>
                 </View>
 
+                {entry.odometer && (
+                  <View style={styles.odometerInfo}>
+                    <Text style={styles.odometerText}>Odometer: {entry.odometer.toLocaleString()} mi</Text>
+                  </View>
+                )}
+
+                {entry.receiptPhoto && (
+                  <View style={styles.receiptInfo}>
+                    <Text style={styles.receiptText}>📄 Receipt attached</Text>
+                  </View>
+                )}
+
                 {entry.notes && entry.notes.trim() ? (
                   <View style={styles.notesSection}>
                     <Text style={styles.notesText}>{entry.notes}</Text>
@@ -352,6 +364,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontStyle: 'italic',
+  },
+  odometerInfo: {
+    marginBottom: 8,
+  },
+  odometerText: {
+    color: '#9CA3AF',
+    fontSize: 12,
+  },
+  receiptInfo: {
+    marginBottom: 8,
+  },
+  receiptText: {
+    color: '#10B981',
+    fontSize: 12,
+    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, Platform, Switch } from 'react-native';
-import { Camera, Save, MapPin } from 'lucide-react-native';
+import { Camera, Save, MapPin, Image as ImageIcon } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { insertFuelPurchase } from '@/utils/database';
+import { uploadReceiptImage, ensureReceiptsBucket } from '@/utils/storage';
 import { FuelPurchase } from '@/types';
 import { getCurrentLocation, getStateFromCoords } from '@/utils/location';
 
@@ -20,6 +21,8 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
   const [receiptPhoto, setReceiptPhoto] = useState<string | null>(null);
   const [taxIncludedAtPump, setTaxIncludedAtPump] = useState(true);
   const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [uploadedReceiptUrl, setUploadedReceiptUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const requestCameraPermission = async () => {
     if (Platform.OS !== 'web') {
@@ -45,6 +48,7 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
 
     if (!result.canceled && result.assets[0]) {
       setReceiptPhoto(result.assets[0].uri);
+      setUploadedReceiptUrl(null); // Reset uploaded URL when new photo taken
     }
   };
 
@@ -84,23 +88,42 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
 
     const gallonsNum = parseFloat(gallons);
     const priceNum = parseFloat(pricePerGallon);
+    const odometerNum = odometer ? parseFloat(odometer) : undefined;
 
     if (isNaN(gallonsNum) || isNaN(priceNum) || gallonsNum <= 0 || priceNum <= 0) {
       Alert.alert('Invalid Input', 'Please enter valid positive numbers for gallons and price');
       return;
     }
 
+    if (odometer && (isNaN(odometerNum!) || odometerNum! < 0)) {
+      Alert.alert('Invalid Input', 'Please enter a valid odometer reading');
+      return;
+    }
+
     try {
+      setIsUploading(true);
+      
+      // Ensure receipts bucket exists
+      await ensureReceiptsBucket();
+      
+      // Upload receipt if selected
+      let finalReceiptUrl = uploadedReceiptUrl;
+      if (receiptPhoto && !uploadedReceiptUrl) {
+        const uploadResult = await uploadReceiptImage(receiptPhoto);
+        finalReceiptUrl = uploadResult.receipt_url;
+        setUploadedReceiptUrl(finalReceiptUrl);
+      }
+      
       const fuelPurchase: FuelPurchase = {
-        id: `fuel_${Date.now()}`,
+        id: '', // Let DB generate UUID
         date: new Date().toISOString(),
         state,
         gallons: gallonsNum,
         pricePerGallon: priceNum,
         totalCost: gallonsNum * priceNum,
         taxIncludedAtPump,
-        odometer: odometer ? parseFloat(odometer) : undefined,
-        receiptPhoto,
+        odometer: odometerNum,
+        receiptPhoto: finalReceiptUrl,
         location,
         latitude: currentCoords?.latitude,
         longitude: currentCoords?.longitude,
@@ -118,6 +141,7 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
       setOdometer('');
       setNotes('');
       setReceiptPhoto(null);
+      setUploadedReceiptUrl(null);
       setTaxIncludedAtPump(true);
       setCurrentCoords(null);
 
@@ -125,6 +149,8 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
     } catch (error) {
       console.error('Error saving fuel purchase:', error);
       Alert.alert('Error', 'Failed to save fuel purchase');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -243,13 +269,26 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
         <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
           <Camera size={20} color="#FFFFFF" />
           <Text style={styles.photoButtonText}>
-            {receiptPhoto ? 'Receipt Photo Added ✓' : 'Take Receipt Photo'}
+            {receiptPhoto || uploadedReceiptUrl ? 'Receipt Photo Added ✓' : 'Take Receipt Photo'}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.saveButton} onPress={saveFuelPurchase}>
+        {(receiptPhoto || uploadedReceiptUrl) && (
+          <View style={styles.photoPreview}>
+            <ImageIcon size={16} color="#10B981" />
+            <Text style={styles.photoPreviewText}>Receipt ready for upload</Text>
+          </View>
+        )}
+
+        <TouchableOpacity 
+          style={[styles.saveButton, isUploading && styles.saveButtonDisabled]} 
+          onPress={saveFuelPurchase}
+          disabled={isUploading}
+        >
           <Save size={20} color="#FFFFFF" />
-          <Text style={styles.saveButtonText}>Save Fuel Purchase</Text>
+          <Text style={styles.saveButtonText}>
+            {isUploading ? 'Uploading...' : 'Save Fuel Purchase'}
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -372,5 +411,23 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  photoPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#065F46',
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginBottom: 16,
+    gap: 6,
+  },
+  photoPreviewText: {
+    color: '#10B981',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#6B7280',
   },
 });

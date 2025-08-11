@@ -53,3 +53,26 @@ export const getDistanceUnit = (unitSystem: UnitSystem): string => {
 export const getVolumeUnit = (unitSystem: UnitSystem): string => {
   return unitSystem === 'metric' ? 'L' : 'gal';
 };
+
+// Settings persistence
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const UNIT_SYSTEM_KEY = 'settings.unitSystem';
+
+export const saveUnitSystem = async (unitSystem: UnitSystem): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(UNIT_SYSTEM_KEY, unitSystem);
+  } catch (error) {
+    console.error('Error saving unit system:', error);
+  }
+};
+
+export const loadUnitSystem = async (): Promise<UnitSystem> => {
+  try {
+    const saved = await AsyncStorage.getItem(UNIT_SYSTEM_KEY);
+    return (saved as UnitSystem) || 'us';
+  } catch (error) {
+    console.error('Error loading unit system:', error);
+    return 'us';
+  }
+};
