@@ -1,0 +1,376 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, Platform, Switch } from 'react-native';
+import { Camera, Save, MapPin } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { insertFuelPurchase } from '@/utils/database';
+import { FuelPurchase } from '@/types';
+import { getCurrentLocation, getStateFromCoords } from '@/utils/location';
+
+interface FuelEntryFormProps {
+  onEntryAdded?: (entry: FuelPurchase) => void;
+}
+
+export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
+  const [gallons, setGallons] = useState('');
+  const [pricePerGallon, setPricePerGallon] = useState('');
+  const [state, setState] = useState('');
+  const [location, setLocation] = useState('');
+  const [odometer, setOdometer] = useState('');
+  const [notes, setNotes] = useState('');
+  const [receiptPhoto, setReceiptPhoto] = useState<string | null>(null);
+  const [taxIncludedAtPump, setTaxIncludedAtPump] = useState(true);
+  const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  const requestCameraPermission = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      return status === 'granted';
+    }
+    return true;
+  };
+
+  const takePhoto = async () => {
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) {
+      Alert.alert('Permission Required', 'Camera permission is required to take receipt photos');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [4, 3],
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setReceiptPhoto(result.assets[0].uri);
+    }
+  };
+
+  const detectCurrentLocation = async () => {
+    try {
+      const coords = await getCurrentLocation();
+      if (coords) {
+        setCurrentCoords(coords);
+        
+        const currentState = await getStateFromCoords(coords);
+        if (currentState !== 'Unknown') {
+          setState(currentState);
+        }
+        
+        // Try to get a more specific location
+        const { reverseGeocode } = await import('@/utils/location');
+        const address = await reverseGeocode(coords);
+        if (address && address !== 'Unknown Location') {
+          // Extract just the city/area part for location field
+          const parts = address.split(',');
+          if (parts.length > 0) {
+            setLocation(parts[0].trim());
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error detecting location:', error);
+      Alert.alert('Error', 'Unable to detect current location');
+    }
+  };
+
+  const saveFuelPurchase = async () => {
+    if (!gallons || !pricePerGallon || !state || !location) {
+      Alert.alert('Missing Information', 'Please fill in all required fields (gallons, price, state, and location)');
+      return;
+    }
+
+    const gallonsNum = parseFloat(gallons);
+    const priceNum = parseFloat(pricePerGallon);
+
+    if (isNaN(gallonsNum) || isNaN(priceNum) || gallonsNum <= 0 || priceNum <= 0) {
+      Alert.alert('Invalid Input', 'Please enter valid positive numbers for gallons and price');
+      return;
+    }
+
+    try {
+      const fuelPurchase: FuelPurchase = {
+        id: `fuel_${Date.now()}`,
+        date: new Date().toISOString(),
+        state,
+        gallons: gallonsNum,
+        pricePerGallon: priceNum,
+        totalCost: gallonsNum * priceNum,
+        taxIncludedAtPump,
+        odometer: odometer ? parseFloat(odometer) : undefined,
+        receiptPhoto,
+        location,
+        latitude: currentCoords?.latitude,
+        longitude: currentCoords?.longitude,
+        notes,
+      };
+
+      await insertFuelPurchase(fuelPurchase);
+      onEntryAdded?.(fuelPurchase);
+
+      // Reset form
+      setGallons('');
+      setPricePerGallon('');
+      setState('');
+      setLocation('');
+      setOdometer('');
+      setNotes('');
+      setReceiptPhoto(null);
+      setTaxIncludedAtPump(true);
+      setCurrentCoords(null);
+
+      Alert.alert('Success', 'Fuel purchase saved successfully');
+    } catch (error) {
+      console.error('Error saving fuel purchase:', error);
+      Alert.alert('Error', 'Failed to save fuel purchase');
+    }
+  };
+
+  const totalCost = gallons && pricePerGallon ? 
+    (parseFloat(gallons) * parseFloat(pricePerGallon)).toFixed(2) : '0.00';
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.form}>
+        <Text style={styles.title}>Add Fuel Purchase</Text>
+
+        <View style={styles.row}>
+          <View style={styles.halfField}>
+            <Text style={styles.label}>Gallons *</Text>
+            <TextInput
+              style={styles.input}
+              value={gallons}
+              onChangeText={setGallons}
+              placeholder="0.00"
+              placeholderTextColor="#6B7280"
+              keyboardType="decimal-pad"
+            />
+          </View>
+
+          <View style={styles.halfField}>
+            <Text style={styles.label}>Price/Gallon *</Text>
+            <TextInput
+              style={styles.input}
+              value={pricePerGallon}
+              onChangeText={setPricePerGallon}
+              placeholder="$0.000"
+              placeholderTextColor="#6B7280"
+              keyboardType="decimal-pad"
+            />
+          </View>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Total Cost</Text>
+          <Text style={styles.totalCost}>${totalCost}</Text>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>State/Province *</Text>
+          <View style={styles.locationInputContainer}>
+            <TextInput
+              style={[styles.input, styles.locationInput]}
+              value={state}
+              onChangeText={setState}
+              placeholder="Select state"
+              placeholderTextColor="#6B7280"
+            />
+            <TouchableOpacity
+              style={styles.detectButton}
+              onPress={detectCurrentLocation}
+            >
+              <MapPin size={16} color="#FFFFFF" />
+              <Text style={styles.detectButtonText}>Auto</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Location *</Text>
+          <TextInput
+            style={styles.input}
+            value={location}
+            onChangeText={setLocation}
+            placeholder="Gas station name or city"
+            placeholderTextColor="#6B7280"
+          />
+        </View>
+
+        <View style={styles.field}>
+          <View style={styles.switchContainer}>
+            <View style={styles.switchInfo}>
+              <Text style={styles.label}>Tax Included at Pump</Text>
+              <Text style={styles.switchDescription}>
+                Was fuel tax included in the pump price?
+              </Text>
+            </View>
+            <Switch
+              value={taxIncludedAtPump}
+              onValueChange={setTaxIncludedAtPump}
+              trackColor={{ false: '#374151', true: '#3B82F6' }}
+              thumbColor={taxIncludedAtPump ? '#FFFFFF' : '#9CA3AF'}
+            />
+          </View>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Odometer Reading</Text>
+          <TextInput
+            style={styles.input}
+            value={odometer}
+            onChangeText={setOdometer}
+            placeholder="Miles (optional)"
+            placeholderTextColor="#6B7280"
+            keyboardType="numeric"
+          />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Notes</Text>
+          <TextInput
+            style={[styles.input, styles.notesInput]}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Additional notes (optional)"
+            placeholderTextColor="#6B7280"
+            multiline
+            numberOfLines={3}
+          />
+        </View>
+
+        <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
+          <Camera size={20} color="#FFFFFF" />
+          <Text style={styles.photoButtonText}>
+            {receiptPhoto ? 'Receipt Photo Added ✓' : 'Take Receipt Photo'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.saveButton} onPress={saveFuelPurchase}>
+          <Save size={20} color="#FFFFFF" />
+          <Text style={styles.saveButtonText}>Save Fuel Purchase</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  form: {
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    padding: 20,
+    margin: 16,
+  },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  field: {
+    marginBottom: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  halfField: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  label: {
+    color: '#F3F4F6',
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    color: '#FFFFFF',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+  },
+  notesInput: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  totalCost: {
+    color: '#10B981',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  locationInputContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  locationInput: {
+    flex: 1,
+  },
+  detectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 4,
+  },
+  detectButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  switchDescription: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  photoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6366F1',
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    gap: 8,
+  },
+  photoButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    paddingVertical: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+});
