@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView,
 import { Camera, Save, MapPin, Image as ImageIcon } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { insertFuelPurchase } from '@/utils/database';
-import { uploadReceiptImage, ensureReceiptsBucket } from '@/utils/storage';
+import { uploadReceiptImage } from '@/utils/storage';
 import { FuelPurchase } from '@/types';
 import { getCurrentLocation, getStateFromCoords } from '@/utils/location';
 
@@ -103,15 +103,18 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
     try {
       setIsUploading(true);
       
-      // Ensure receipts bucket exists
-      await ensureReceiptsBucket();
-      
       // Upload receipt if selected
       let finalReceiptUrl = uploadedReceiptUrl;
       if (receiptPhoto && !uploadedReceiptUrl) {
-        const uploadResult = await uploadReceiptImage(receiptPhoto);
-        finalReceiptUrl = uploadResult.receipt_url;
-        setUploadedReceiptUrl(finalReceiptUrl);
+        try {
+          const uploadResult = await uploadReceiptImage(receiptPhoto);
+          finalReceiptUrl = uploadResult.receipt_url;
+          setUploadedReceiptUrl(finalReceiptUrl);
+        } catch (uploadError) {
+          console.warn('Receipt upload failed, saving without receipt:', uploadError);
+          // Continue without receipt if upload fails
+          finalReceiptUrl = null;
+        }
       }
       
       const fuelPurchase: FuelPurchase = {

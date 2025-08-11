@@ -42,32 +42,3 @@ export const uploadReceiptImage = async (imageUri: string): Promise<ReceiptUploa
     throw error;
   }
 };
-
-export const ensureReceiptsBucket = async (): Promise<void> => {
-  try {
-    // Check if bucket exists
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-    
-    if (listError) {
-      console.warn('Could not list buckets:', listError);
-      return;
-    }
-    
-    const receiptsBucket = buckets?.find(bucket => bucket.name === 'receipts');
-    
-    if (!receiptsBucket) {
-      // Create bucket if it doesn't exist
-      const { error: createError } = await supabase.storage.createBucket('receipts', {
-        public: true,
-        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
-        fileSizeLimit: 5242880 // 5MB
-      });
-      
-      if (createError) {
-        console.warn('Could not create receipts bucket:', createError);
-      }
-    }
-  } catch (error) {
-    console.warn('Error ensuring receipts bucket:', error);
-  }
-};
