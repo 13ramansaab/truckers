@@ -4,6 +4,7 @@ import { Download, FileText } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
+import { loadThemeColors } from '@/utils/theme';
 
 interface ExportButtonsProps {
   rows: any[];
@@ -22,6 +23,12 @@ export default function ExportButtons({
   quarter,
   year,
 }: ExportButtonsProps) {
+  const [colors, setColors] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    loadThemeColors().then(setColors);
+  }, []);
+
   const exportCSV = async () => {
     if (disabled) {
       onDisabledPress();
@@ -164,13 +171,18 @@ export default function ExportButtons({
     }
   };
 
+  if (!colors) return null;
+
+  const styles = createStyles(colors);
+
   return (
     <View style={styles.container}>
       <TouchableOpacity
         style={[styles.button, styles.csvButton, disabled && styles.disabledButton]}
         onPress={exportCSV}
+        activeOpacity={0.8}
       >
-        <Download size={16} color={disabled ? '#6B7280' : '#FFFFFF'} />
+        <Download size={16} color={disabled ? colors.muted : colors.onPrimary} />
         <Text style={[styles.buttonText, disabled && styles.disabledText]}>
           Export CSV
         </Text>
@@ -179,8 +191,9 @@ export default function ExportButtons({
       <TouchableOpacity
         style={[styles.button, styles.pdfButton, disabled && styles.disabledButton]}
         onPress={exportPDF}
+        activeOpacity={0.8}
       >
-        <FileText size={16} color={disabled ? '#6B7280' : '#FFFFFF'} />
+        <FileText size={16} color={disabled ? colors.muted : colors.onDanger} />
         <Text style={[styles.buttonText, disabled && styles.disabledText]}>
           Export PDF
         </Text>
@@ -189,37 +202,38 @@ export default function ExportButtons({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     gap: 12,
+    flexWrap: 'wrap',
     justifyContent: 'flex-end',
-    flexWrap: 'wrap',
-    flexWrap: 'wrap',
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 10,
     gap: 6,
+    minHeight: 40,
   },
   csvButton: {
-    backgroundColor: '#10B981',
+    backgroundColor: colors.primary,
   },
   pdfButton: {
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.danger,
   },
   disabledButton: {
-    backgroundColor: '#374151',
+    backgroundColor: colors.surface,
+    opacity: 0.6,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: colors.onPrimary,
     fontSize: 14,
     fontWeight: '500',
   },
   disabledText: {
-    color: '#6B7280',
+    color: colors.muted,
   },
 });

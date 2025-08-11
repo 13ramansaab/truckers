@@ -7,6 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { Platform } from 'react-native';
 import { getUnit, setUnit, getTheme, setTheme, getGpsHighAccuracy, setGpsHighAccuracy } from '@/utils/prefs';
+import { loadThemeColors } from '@/utils/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen() {
@@ -17,6 +18,7 @@ export default function SettingsScreen() {
   const [trialActive, setTrialActive] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [appVersion, setAppVersion] = useState('1.0.0');
+  const [colors, setColors] = useState<any>(null);
 
   // Load settings when screen focuses
   useFocusEffect(
@@ -28,6 +30,9 @@ export default function SettingsScreen() {
   const loadSettings = async () => {
     try {
       await ensureTrialStart();
+      const themeColors = await loadThemeColors();
+      setColors(themeColors);
+      
       const savedUnitSystem = await getUnit();
       const savedTheme = await getTheme();
       const savedHighAccuracy = await getGpsHighAccuracy();
@@ -52,6 +57,7 @@ export default function SettingsScreen() {
       setUnitSystem(newUnitSystem);
     } catch (error) {
       console.error('Error saving unit system:', error);
+      Alert.alert('Error', 'Failed to save unit system preference');
     }
   };
 
@@ -60,8 +66,13 @@ export default function SettingsScreen() {
       const nextTheme = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system';
       await setTheme(nextTheme);
       setThemeState(nextTheme);
+      
+      // Reload theme colors
+      const themeColors = await loadThemeColors();
+      setColors(themeColors);
     } catch (error) {
       console.error('Error saving theme:', error);
+      Alert.alert('Error', 'Failed to save theme preference');
     }
   };
 
@@ -225,59 +236,59 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Permissions</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Permissions</Text>
         
-        <TouchableOpacity style={styles.actionButton} onPress={requestLocationPermission}>
+        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={requestLocationPermission}>
           <MapPin size={20} color="#3B82F6" />
           <View style={styles.actionInfo}>
-            <Text style={styles.actionLabel}>Request Location Permission</Text>
-            <Text style={styles.actionDescription}>Allow location access for trip tracking</Text>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>Request Location Permission</Text>
+            <Text style={[styles.actionDescription, { color: colors.muted }]}>Allow location access for trip tracking</Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={openOSSettings}>
+        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={openOSSettings}>
           <Smartphone size={20} color="#6366F1" />
           <View style={styles.actionInfo}>
-            <Text style={styles.actionLabel}>Open System Settings</Text>
-            <Text style={styles.actionDescription}>Manage app permissions in system settings</Text>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>Open System Settings</Text>
+            <Text style={[styles.actionDescription, { color: colors.muted }]}>Manage app permissions in system settings</Text>
           </View>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Data Management</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
         
-        <TouchableOpacity style={styles.actionButton} onPress={clearCache}>
+        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={clearCache}>
           <Database size={20} color="#F59E0B" />
           <View style={styles.actionInfo}>
-            <Text style={styles.actionLabel}>Clear Cache</Text>
-            <Text style={styles.actionDescription}>Clear app preferences and trial data</Text>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>Clear Cache</Text>
+            <Text style={[styles.actionDescription, { color: colors.muted }]}>Clear app preferences and trial data</Text>
           </View>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Support</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Support</Text>
         
-        <TouchableOpacity style={styles.actionButton} onPress={showAbout}>
+        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={showAbout}>
           <Info size={20} color="#6366F1" />
           <View style={styles.actionInfo}>
-            <Text style={styles.actionLabel}>About</Text>
-            <Text style={styles.actionDescription}>App version and information</Text>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>About</Text>
+            <Text style={[styles.actionDescription, { color: colors.muted }]}>App version and information</Text>
           </View>
         </TouchableOpacity>
       </View>
 
       {__DEV__ && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Development Tools</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Development Tools</Text>
           {(() => {
             try {
               const DevDataGenerator = require('@/components/DevDataGenerator').default;
               return <DevDataGenerator />;
             } catch (error) {
               return (
-                <Text style={styles.actionDescription}>
+                <Text style={[styles.actionDescription, { color: colors.muted }]}>
                   DevDataGenerator not available
                 </Text>
               );
@@ -287,29 +298,46 @@ export default function SettingsScreen() {
       )}
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Trucker Fuel Tax Calculator</Text>
-        <Text style={styles.footerSubtext}>Version {appVersion}</Text>
+        <Text style={[styles.footerText, { color: colors.text }]}>Trucker Fuel Tax Calculator</Text>
+        <Text style={[styles.footerSubtext, { color: colors.muted }]}>Version {appVersion}</Text>
       </View>
     </ScrollView>
   );
 }
 
+const createDynamicStyles = (colors: any) => StyleSheet.create({
+  unitButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    minWidth: 50,
+    alignItems: 'center',
+    backgroundColor: colors.border,
+  },
+});
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 18,
   },
   header: {
     padding: 20,
     paddingTop: 60,
   },
   title: {
-    color: '#FFFFFF',
     fontSize: 28,
     fontWeight: 'bold',
   },
   subtitle: {
-    color: '#9CA3AF',
     fontSize: 16,
     marginTop: 4,
   },
@@ -318,7 +346,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   sectionTitle: {
-    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 16,
@@ -327,7 +354,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -337,19 +363,16 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   settingLabel: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 4,
   },
   settingDescription: {
-    color: '#9CA3AF',
     fontSize: 14,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -359,13 +382,11 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   actionLabel: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 4,
   },
   actionDescription: {
-    color: '#9CA3AF',
     fontSize: 14,
   },
   footer: {
@@ -373,41 +394,23 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
   },
   footerText: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
   footerSubtext: {
-    color: '#9CA3AF',
     fontSize: 14,
     marginTop: 4,
   },
   unitToggle: {
     flexDirection: 'row',
-    backgroundColor: '#374151',
     borderRadius: 8,
     padding: 2,
   },
-  unitButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    minWidth: 50,
-    alignItems: 'center',
-  },
-  unitButtonActive: {
-    backgroundColor: '#3B82F6',
-  },
   unitButtonText: {
-    color: '#9CA3AF',
     fontSize: 14,
     fontWeight: '500',
   },
-  unitButtonTextActive: {
-    color: '#FFFFFF',
-  },
   themeButton: {
-    backgroundColor: '#3B82F6',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -415,23 +418,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   themeButtonText: {
-    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',
   },
   trialStatus: {
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 16,
   },
   trialStatusTitle: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
   },
   trialStatusDescription: {
-    color: '#9CA3AF',
     fontSize: 14,
   },
 });

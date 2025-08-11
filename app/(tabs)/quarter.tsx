@@ -6,9 +6,10 @@ import { useCallback } from 'react';
 import { getQuarterTrips, getQuarterFuelPurchases, getTaxRatesSnapshot } from '@/utils/database';
 import { computeIFTA, bucketMilesByState } from '@/utils/ifta';
 import { canExport, daysLeft, ensureTrialStart } from '@/utils/trial';
-import { formatDistance, formatVolume, formatEfficiency } from '@/utils/units';
+import { formatDistance, formatVolume, formatEfficiency, miToKm, galToL, mpgToKmPerL } from '@/utils/units';
 import ExportButtons from '@/components/ExportButtons';
 import { getUnit } from '@/utils/prefs';
+import { loadThemeColors } from '@/utils/theme';
 
 function getQuarterRange(year: number, q: number) {
   const m0 = (q - 1) * 3;
@@ -26,6 +27,7 @@ export default function QuarterScreen() {
   const [trialDaysLeft, setTrialDaysLeft] = useState(0);
   const [loading, setLoading] = useState(false);
   const [totals, setTotals] = useState<any>(null);
+  const [colors, setColors] = useState<any>(null);
 
   useEffect(() => {
     // Auto-detect current quarter
@@ -38,30 +40,40 @@ export default function QuarterScreen() {
   // Reload when screen gains focus
   useFocusEffect(
     useCallback(() => {
-      generateReport(selectedQuarter, selectedYear);
+      loadPreferencesAndGenerateReport();
     }, [selectedQuarter, selectedYear])
   );
+
+  const loadPreferencesAndGenerateReport = async () => {
+    try {
+      const [unit, themeColors] = await Promise.all([
+        getUnit(),
+        loadThemeColors()
+      ]);
+      
+      setUnitSystem(unit);
+      setColors(themeColors);
+      await generateReport(selectedQuarter, selectedYear, unit);
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+      await generateReport(selectedQuarter, selectedYear, unitSystem);
+    }
+  };
 
   const initializeApp = async () => {
     await ensureTrialStart();
     const canExportStatus = await canExport();
     const trialDays = await daysLeft();
     
-    // Load unit system from settings
-    const savedUnitSystem = await getUnit();
-    setUnitSystem(savedUnitSystem);
-    
     setCanExportData(canExportStatus);
     setTrialDaysLeft(trialDays);
-    generateReport(selectedQuarter, selectedYear);
+    loadPreferencesAndGenerateReport();
   };
 
-  const generateReport = async (quarter: number, year: number) => {
+  const generateReport = async (quarter: number, year: number, unit?: 'us' | 'metric') => {
     setLoading(true);
     try {
-      // Load unit system from preferences
-      const currentUnitSystem = await getUnit();
-      setUnitSystem(currentUnitSystem);
+      const currentUnitSystem = unit || unitSystem;
       
       const trips = await getQuarterTrips(year, quarter);
       const fuelEntries = await getQuarterFuelPurchases(year, quarter);
@@ -119,10 +131,11 @@ export default function QuarterScreen() {
       
       // Set totals with proper values even if zero
       const computedTotals = {
-        miles: iftaResult.totalMiles || 0,
-        gallons: iftaResult.totalGallons || 0,
-        fleetMPG: iftaResult.fleetMPG || 0,
+        miles: currentUnitSystem === 'metric' ? miToKm(iftaResult.totalMiles || 0) : (iftaResult.totalMiles || 0),
+        gallons: currentUnitSystem === 'metric' ? galToL(iftaResult.totalGallons || 0) : (iftaResult.totalGallons || 0),
+        fleetMPG: currentUnitSystem === 'metric' ? mpgToKmPerL(iftaResult.fleetMPG || 0) : (iftaResult.fleetMPG || 0),
         net: iftaResult.netLiability || 0,
+        unit: currentUnitSystem,
       };
       setTotals(computedTotals);
       
@@ -134,15 +147,16 @@ export default function QuarterScreen() {
         stateBreakdown: Object.entries(iftaResult.stateResults).map(([state, data]) => ({
           state,
           ...data,
-          fuelPurchased: fuelByState[state] || 0,
-          fleetMPG: iftaResult.fleetMPG,
+          fuelPurchased: currentUnitSystem === 'metric' ? galToL(fuelByState[state] || 0) : (fuelByState[state] || 0),
+          fleetMPG: currentUnitSystem === 'metric' ? mpgToKmPerL(iftaResult.fleetMPG) : iftaResult.fleetMPG,
           taxRate: taxRates[state] || 0,
+          miles: currentUnitSystem === 'metric' ? miToKm(data.miles) : data.miles,
         })).sort((a, b) => b.miles - a.miles),
       });
     } catch (error) {
       console.error('Error generating report:', error);
       // Set empty totals on error
-      setTotals({ miles: 0, gallons: 0, fleetMPG: 0, net: 0 });
+      setTotals({ miles: 0, gallons: 0, fleetMPG: 0, net: 0, unit: unitSystem });
       Alert.alert('Error', 'Failed to generate quarterly report');
     } finally {
       setLoading(false);
@@ -171,32 +185,44 @@ export default function QuarterScreen() {
   const quarters = [1, 2, 3, 4];
   const years = Array.from({ length: 3 }, (_, i) => new Date().getFullYear() - i);
 
+  if (!colors) {
+    return (
+      <View style={[styles.container, { backgroundColor: '#111827' }]}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const dynamicStyles = createDynamicStyles(colors);
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Quarterly Summary</Text>
-        <Text style={styles.subtitle}>IFTA tax calculations and reporting</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Quarterly Summary</Text>
+        <Text style={[styles.subtitle, { color: colors.muted }]}>IFTA tax calculations and reporting</Text>
       </View>
 
       <View style={styles.selectorContainer}>
         <View style={styles.quarterSelector}>
-          <Text style={styles.selectorLabel}>Quarter</Text>
+          <Text style={[styles.selectorLabel, { color: colors.text }]}>Quarter</Text>
           <View style={styles.selectorButtons}>
             {quarters.map(q => (
               <TouchableOpacity
                 key={q}
                 style={[
-                  styles.selectorButton,
-                  selectedQuarter === q && styles.selectorButtonActive
+                  dynamicStyles.selectorButton,
+                  selectedQuarter === q && { backgroundColor: colors.primary, borderColor: colors.primary }
                 ]}
                 onPress={() => {
                   setSelectedQuarter(q);
-                  generateReport(q, selectedYear);
+                  generateReport(q, selectedYear, unitSystem);
                 }}
               >
                 <Text style={[
-                  styles.selectorButtonText,
-                  selectedQuarter === q && styles.selectorButtonTextActive
+                  { color: selectedQuarter === q ? colors.onPrimary : colors.muted },
+                  styles.selectorButtonText
                 ]}>
                   Q{q}
                 </Text>
@@ -206,23 +232,23 @@ export default function QuarterScreen() {
         </View>
 
         <View style={styles.yearSelector}>
-          <Text style={styles.selectorLabel}>Year</Text>
+          <Text style={[styles.selectorLabel, { color: colors.text }]}>Year</Text>
           <View style={styles.selectorButtons}>
             {years.map(year => (
               <TouchableOpacity
                 key={year}
                 style={[
-                  styles.selectorButton,
-                  selectedYear === year && styles.selectorButtonActive
+                  dynamicStyles.selectorButton,
+                  selectedYear === year && { backgroundColor: colors.primary, borderColor: colors.primary }
                 ]}
                 onPress={() => {
                   setSelectedYear(year);
-                  generateReport(selectedQuarter, year);
+                  generateReport(selectedQuarter, year, unitSystem);
                 }}
               >
                 <Text style={[
-                  styles.selectorButtonText,
-                  selectedYear === year && styles.selectorButtonTextActive
+                  { color: selectedYear === year ? colors.onPrimary : colors.muted },
+                  styles.selectorButtonText
                 ]}>
                   {year}
                 </Text>
@@ -233,40 +259,50 @@ export default function QuarterScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Generating report...</Text>
+        <View style={[styles.loadingContainer, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.loadingText, { color: colors.text }]}>Generating report...</Text>
         </View>
       ) : quarterData ? (
         <>
           <View style={styles.summaryContainer}>
             <View style={styles.summaryGrid}>
-              <View style={styles.summaryCard}>
+              <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
                 <TrendingUp size={24} color="#3B82F6" />
-                <Text style={styles.summaryValue}>{(totals?.miles || 0).toFixed(0)}</Text>
-                <Text style={styles.summaryLabel}>Total Miles</Text>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>
+                  {(totals?.miles || 0).toFixed(0)}
+                </Text>
+                <Text style={[styles.summaryLabel, { color: colors.muted }]}>
+                  Total {totals?.unit === 'metric' ? 'Kilometers' : 'Miles'}
+                </Text>
               </View>
 
-              <View style={styles.summaryCard}>
+              <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
                 <DollarSign size={24} color="#10B981" />
-                <Text style={styles.summaryValue}>${(quarterData?.totalFuelCost || 0).toFixed(0)}</Text>
-                <Text style={styles.summaryLabel}>Fuel Cost</Text>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>
+                  ${(quarterData?.totalFuelCost || 0).toFixed(0)}
+                </Text>
+                <Text style={[styles.summaryLabel, { color: colors.muted }]}>Fuel Cost</Text>
               </View>
 
-              <View style={styles.summaryCard}>
+              <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
                 <Calculator size={24} color="#F59E0B" />
-                <Text style={styles.summaryValue}>{(totals?.fleetMPG || 0).toFixed(1)}</Text>
-                <Text style={styles.summaryLabel}>Avg MPG</Text>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>
+                  {(totals?.fleetMPG || 0).toFixed(1)}
+                </Text>
+                <Text style={[styles.summaryLabel, { color: colors.muted }]}>
+                  Avg {totals?.unit === 'metric' ? 'km/L' : 'MPG'}
+                </Text>
               </View>
 
-              <View style={styles.summaryCard}>
+              <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
                 <DollarSign size={24} color={(totals?.net || 0) >= 0 ? '#DC2626' : '#10B981'} />
                 <Text style={[
                   styles.summaryValue,
-                  { color: (totals?.net || 0) >= 0 ? '#DC2626' : '#10B981' }
+                  { color: (totals?.net || 0) >= 0 ? colors.danger : '#10B981' }
                 ]}>
                   ${Math.abs(totals?.net || 0).toFixed(2)}
                 </Text>
-                <Text style={styles.summaryLabel}>
+                <Text style={[styles.summaryLabel, { color: colors.muted }]}>
                   {(totals?.net || 0) >= 0 ? 'Tax Owed' : 'Tax Refund'}
                 </Text>
               </View>
@@ -275,7 +311,7 @@ export default function QuarterScreen() {
 
           <View style={styles.taxBreakdownContainer}>
             <View style={styles.taxBreakdownHeader}>
-              <Text style={styles.sectionTitle}>Tax Breakdown</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Tax Breakdown</Text>
               <ExportButtons
                 rows={quarterData.stateBreakdown}
                 unitSystem={unitSystem}
@@ -286,29 +322,29 @@ export default function QuarterScreen() {
               />
             </View>
 
-            <View style={styles.taxSummary}>
+            <View style={[styles.taxSummary, { backgroundColor: colors.surface }]}>
               <View style={styles.taxSummaryRow}>
-                <Text style={styles.taxSummaryLabel}>Total Tax Liability:</Text>
-                <Text style={styles.taxSummaryValue}>
+                <Text style={[styles.taxSummaryLabel, { color: colors.muted }]}>Total Tax Liability:</Text>
+                <Text style={[styles.taxSummaryValue, { color: colors.text }]}>
                   ${quarterData.totalLiability.toFixed(2)}
                 </Text>
               </View>
               
               <View style={styles.taxSummaryRow}>
-                <Text style={styles.taxSummaryLabel}>Total Tax Credits:</Text>
-                <Text style={styles.taxSummaryValue}>
+                <Text style={[styles.taxSummaryLabel, { color: colors.muted }]}>Total Tax Credits:</Text>
+                <Text style={[styles.taxSummaryValue, { color: colors.text }]}>
                   ${(quarterData.totalLiability - quarterData.netLiability).toFixed(2)}
                 </Text>
               </View>
               
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
               
               <View style={styles.taxSummaryRow}>
-                <Text style={[styles.taxSummaryLabel, styles.netTaxLabel]}>Net Tax:</Text>
+                <Text style={[styles.taxSummaryLabel, styles.netTaxLabel, { color: colors.text }]}>Net Tax:</Text>
                 <Text style={[
                   styles.taxSummaryValue,
                   styles.netTaxValue,
-                  { color: quarterData.netLiability >= 0 ? '#DC2626' : '#10B981' }
+                  { color: quarterData.netLiability >= 0 ? colors.danger : '#10B981' }
                 ]}>
                   {quarterData.netLiability >= 0 ? '' : '-'}${Math.abs(quarterData.netLiability).toFixed(2)}
                 </Text>
@@ -317,52 +353,60 @@ export default function QuarterScreen() {
           </View>
 
           <View style={styles.stateBreakdownContainer}>
-            <Text style={styles.sectionTitle}>State Breakdown</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>State Breakdown</Text>
             
             {quarterData.stateBreakdown.length === 0 ? (
-              <View style={styles.emptyState}>
+              <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
                 <FileText size={48} color="#6B7280" />
-                <Text style={styles.emptyStateText}>No data for this quarter</Text>
-                <Text style={styles.emptyStateSubtext}>
+                <Text style={[styles.emptyStateText, { color: colors.text }]}>No data for this quarter</Text>
+                <Text style={[styles.emptyStateSubtext, { color: colors.muted }]}>
                   Add trips and fuel entries to see state breakdown
                 </Text>
               </View>
             ) : (
               <View style={styles.stateList}>
                 {quarterData.stateBreakdown.map((state: any, index: number) => (
-                  <View key={`${state.state}-${index}`} style={styles.stateCard}>
+                  <View key={`${state.state}-${index}`} style={[styles.stateCard, { backgroundColor: colors.surface }]}>
                     <View style={styles.stateHeader}>
-                      <Text style={styles.stateName}>{state.state}</Text>
-                      <Text style={styles.stateNetTax}>
+                      <Text style={[styles.stateName, { color: colors.text }]}>{state.state}</Text>
+                      <Text style={[styles.stateNetTax, { color: colors.primary }]}>
                         Net: ${state.liability.toFixed(2)}
                       </Text>
                     </View>
                     
                     <View style={styles.stateDetails}>
                       <View style={styles.stateRow}>
-                        <Text style={styles.stateLabel}>Miles:</Text>
-                        <Text style={styles.stateValue}>{state.miles.toFixed(0)}</Text>
+                        <Text style={[styles.stateLabel, { color: colors.muted }]}>
+                          {unitSystem === 'metric' ? 'Kilometers:' : 'Miles:'}
+                        </Text>
+                        <Text style={[styles.stateValue, { color: colors.text }]}>
+                          {state.miles.toFixed(0)} {unitSystem === 'metric' ? 'km' : 'mi'}
+                        </Text>
                       </View>
                       
                       <View style={styles.stateRow}>
-                        <Text style={styles.stateLabel}>Fuel Purchased:</Text>
-                        <Text style={styles.stateValue}>{(state.fuelPurchased || 0).toFixed(1)} gal</Text>
+                        <Text style={[styles.stateLabel, { color: colors.muted }]}>Fuel Purchased:</Text>
+                        <Text style={[styles.stateValue, { color: colors.text }]}>
+                          {(state.fuelPurchased || 0).toFixed(1)} {unitSystem === 'metric' ? 'L' : 'gal'}
+                        </Text>
                       </View>
                       
                       <View style={styles.stateRow}>
-                        <Text style={styles.stateLabel}>Tax Rate:</Text>
-                        <Text style={styles.stateValue}>${state.taxRate.toFixed(3)}/gal</Text>
+                        <Text style={[styles.stateLabel, { color: colors.muted }]}>Tax Rate:</Text>
+                        <Text style={[styles.stateValue, { color: colors.text }]}>
+                          ${state.taxRate.toFixed(3)}/{unitSystem === 'metric' ? 'L' : 'gal'}
+                        </Text>
                       </View>
                       
                       <View style={styles.stateRow}>
-                        <Text style={styles.stateLabel}>Tax Liability:</Text>
-                        <Text style={[styles.stateValue, { color: '#DC2626' }]}>
+                        <Text style={[styles.stateLabel, { color: colors.muted }]}>Tax Liability:</Text>
+                        <Text style={[styles.stateValue, { color: colors.danger }]}>
                           ${(state.taxRate * state.taxableGallons).toFixed(2)}
                         </Text>
                       </View>
                       
                       <View style={styles.stateRow}>
-                        <Text style={styles.stateLabel}>Tax Credits:</Text>
+                        <Text style={[styles.stateLabel, { color: colors.muted }]}>Tax Credits:</Text>
                         <Text style={[styles.stateValue, { color: '#10B981' }]}>
                           ${state.taxPaidAtPump.toFixed(2)}
                         </Text>
@@ -379,22 +423,30 @@ export default function QuarterScreen() {
   );
 }
 
+const createDynamicStyles = (colors: any) => StyleSheet.create({
+  selectorButton: {
+    backgroundColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+});
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
   },
   header: {
     padding: 20,
     paddingTop: 60,
   },
   title: {
-    color: '#FFFFFF',
     fontSize: 28,
     fontWeight: 'bold',
   },
   subtitle: {
-    color: '#9CA3AF',
     fontSize: 16,
     marginTop: 4,
   },
@@ -406,7 +458,6 @@ const styles = StyleSheet.create({
   quarterSelector: {},
   yearSelector: {},
   selectorLabel: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
@@ -415,35 +466,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  selectorButton: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#4B5563',
-  },
-  selectorButtonActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
-  },
   selectorButtonText: {
-    color: '#9CA3AF',
     fontSize: 14,
     fontWeight: '500',
   },
-  selectorButtonTextActive: {
-    color: '#FFFFFF',
-  },
   loadingContainer: {
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 32,
     margin: 16,
     alignItems: 'center',
   },
   loadingText: {
-    color: '#FFFFFF',
     fontSize: 16,
   },
   summaryContainer: {
@@ -456,7 +489,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   summaryCard: {
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -464,13 +496,11 @@ const styles = StyleSheet.create({
     minWidth: '45%',
   },
   summaryValue: {
-    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: 'bold',
     marginTop: 8,
   },
   summaryLabel: {
-    color: '#9CA3AF',
     fontSize: 12,
     marginTop: 4,
     textAlign: 'center',
@@ -486,7 +516,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '600',
   },
@@ -505,7 +534,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   taxSummary: {
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 16,
   },
@@ -516,18 +544,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   taxSummaryLabel: {
-    color: '#9CA3AF',
     fontSize: 14,
   },
   taxSummaryValue: {
-    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',
   },
   netTaxLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
   netTaxValue: {
     fontSize: 18,
@@ -535,7 +560,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#374151',
     marginVertical: 8,
   },
   stateBreakdownContainer: {
@@ -543,20 +567,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   emptyState: {
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 32,
     alignItems: 'center',
   },
   emptyStateText: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '500',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyStateSubtext: {
-    color: '#9CA3AF',
     fontSize: 14,
     textAlign: 'center',
   },
@@ -564,7 +585,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   stateCard: {
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 16,
   },
@@ -575,12 +595,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   stateName: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
   },
   stateNetTax: {
-    color: '#3B82F6',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -593,11 +611,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   stateLabel: {
-    color: '#9CA3AF',
     fontSize: 14,
   },
   stateValue: {
-    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',
   },

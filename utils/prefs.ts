@@ -16,16 +16,17 @@ export const setUnit = async (value: 'us' | 'metric'): Promise<void> => {
     await AsyncStorage.setItem('settings.unitSystem', value);
   } catch (error) {
     console.error('Error setting unit preference:', error);
+    throw error;
   }
 };
 
 export const getTheme = async (): Promise<'system' | 'light' | 'dark'> => {
   try {
     const value = await AsyncStorage.getItem('settings.theme');
-    return (value as 'system' | 'light' | 'dark') || 'system';
+    return (value as 'system' | 'light' | 'dark') || 'dark';
   } catch (error) {
     console.error('Error getting theme preference:', error);
-    return 'system';
+    return 'dark';
   }
 };
 
@@ -34,6 +35,7 @@ export const setTheme = async (value: 'system' | 'light' | 'dark'): Promise<void
     await AsyncStorage.setItem('settings.theme', value);
   } catch (error) {
     console.error('Error setting theme preference:', error);
+    throw error;
   }
 };
 
