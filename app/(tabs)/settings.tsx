@@ -153,6 +153,16 @@ export default function SettingsScreen() {
     );
   };
 
+  if (!colors) {
+    return (
+      <View style={[styles.container, { backgroundColor: '#111827' }]}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
