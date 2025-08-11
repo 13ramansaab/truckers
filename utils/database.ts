@@ -22,17 +22,21 @@ export const initializeDatabase = async () => {
 // Trip operations
 export const insertTrip = async (trip: Trip) => {
   try {
-    const { error } = await supabase
-      .from('trips')
-      .insert({
-        id: trip.id,
-        name: trip.notes || null,
-        start_date: trip.startDate.split('T')[0],
-        end_date: trip.endDate ? trip.endDate.split('T')[0] : null,
-        is_active: trip.isActive,
-      });
+  const payload: any = {
+     name: trip.notes || null,
+     start_date: trip.startDate.split('T')[0],
+     end_date: trip.endDate ? trip.endDate.split('T')[0] : null,
+     is_active: trip.isActive,
+     total_miles: trip.totalMiles ?? 0,
+   };
+   const { data, error } = await supabase
+     .from('trips')
+     .insert(payload)
+     .select('id')
+     .single();
 
     if (error) throw error;
+    return data?.id as string | undefined;
   } catch (error) {
     console.error('Error inserting trip:', error);
     throw error;
