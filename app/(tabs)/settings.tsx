@@ -8,6 +8,7 @@ import { useCallback } from 'react';
 import { Platform } from 'react-native';
 import { getUnit, setUnit, getTheme, setTheme, getGpsHighAccuracy, setGpsHighAccuracy } from '@/utils/prefs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DevDataGenerator from '@/components/DevDataGenerator';
 
 export default function SettingsScreen() {
   const [theme, setThemeState] = useState<'system' | 'light' | 'dark'>('system');
