@@ -1,14 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { FileText, Download, TrendingUp, DollarSign, Calculator } from 'lucide-react-native';
-import { getAllTrips, getAllFuelEntries } from '@/utils/database';
-import { generateQuarterlyReport } from '@/utils/taxCalculations';
-import { generateQuarterlyCSV, exportToCSV } from '@/utils/exportUtils';
+import { getQuarterTrips, getQuarterFuelPurchases, getTaxRatesSnapshot } from '@/utils/database';
+import { computeQuarterIFTA, bucketMilesByState } from '@/utils/ifta';
+import { canExport, getRemainingTrialDays, initializeTrial } from '@/utils/trial';
+import { UnitSystem, formatDistance, formatVolume, formatEfficiency } from '@/utils/units';
+import ExportButtons from '@/components/ExportButtons';
+import type { Trip, FuelPurchase } from '@/types';
 
 export default function QuarterScreen() {
   const [quarterData, setQuarterData] = useState<any>(null);
   const [selectedQuarter, setSelectedQuarter] = useState(1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [unitSystem, setUnitSystem] = useState<UnitSystem>('us');
+  const [canExportData, setCanExportData] = useState(false);
+  const [remainingTrialDays, setRemainingTrialDays] = useState(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -16,17 +22,56 @@ export default function QuarterScreen() {
     const now = new Date();
     const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
     setSelectedQuarter(currentQuarter);
-    generateReport(currentQuarter, selectedYear);
+    initializeApp();
   }, []);
+
+  const initializeApp = async () => {
+    await initializeTrial();
+    const canExportStatus = await canExport();
+    const trialDays = await getRemainingTrialDays();
+    setCanExportData(canExportStatus);
+    setRemainingTrialDays(trialDays);
+    generateReport(selectedQuarter, selectedYear);
+  };
 
   const generateReport = async (quarter: number, year: number) => {
     setLoading(true);
     try {
-      const trips = await getAllTrips();
-      const fuelEntries = await getAllFuelEntries();
+      const trips = await getQuarterTrips(year, quarter);
+      const fuelEntries = await getQuarterFuelPurchases(year, quarter);
+      const taxRates = await getTaxRatesSnapshot(year, quarter);
       
-      const report = generateQuarterlyReport(trips, fuelEntries, quarter, year);
-      setQuarterData(report);
+      // Aggregate miles by state from trips
+      const milesByState: Record<string, number> = {};
+      trips.forEach(trip => {
+        Object.entries(trip.milesByState || {}).forEach(([state, miles]) => {
+          milesByState[state] = (milesByState[state] || 0) + miles;
+        });
+      });
+      
+      // Aggregate fuel by state
+      const fuelByState: Record<string, number> = {};
+      fuelEntries.forEach(fuel => {
+        fuelByState[fuel.state] = (fuelByState[fuel.state] || 0) + fuel.gallons;
+      });
+      
+      // Compute IFTA results
+      const iftaResult = computeQuarterIFTA({
+        milesByState,
+        fuelByState,
+        ratesByState: taxRates,
+      });
+      
+      setQuarterData({
+        quarter,
+        year,
+        ...iftaResult,
+        stateBreakdown: Object.entries(iftaResult.stateResults).map(([state, data]) => ({
+          state,
+          ...data,
+          taxRate: taxRates[state] || 0,
+        })).sort((a, b) => b.miles - a.miles),
+      });
     } catch (error) {
       console.error('Error generating report:', error);
       Alert.alert('Error', 'Failed to generate quarterly report');
@@ -35,17 +80,140 @@ export default function QuarterScreen() {
     }
   };
 
-  const exportReport = async () => {
-    if (!quarterData) return;
+  const handleDisabledExport = () => {
+    if (remainingTrialDays > 0) {
+      Alert.alert(
+        'Trial Active',
+        `You have ${remainingTrialDays} days remaining in your free trial.`,
+        [{ text: 'OK' }]
+      );
+    } else {
+      Alert.alert(
+        'Subscription Required',
+        'Your free trial has expired. Please subscribe to continue exporting reports.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Subscribe', onPress: () => {
+            // TODO: Navigate to subscription screen
+            Alert.alert('Coming Soon', 'Subscription feature will be available soon.');
+          }},
+        ]
+      );
+    }
+  };
 
+  const generateCSVData = (): string => {
+    if (!quarterData) return '';
+    
+    const headers = [
+      'Quarter', 'Year', 'State', 'Miles', 'Gallons Purchased', 
+      'Fleet MPG', 'Taxable Gallons', 'Tax Rate', 'Tax Paid At Pump', 'Liability'
+    ];
+    
+    const rows = quarterData.stateBreakdown.map((state: any) => [
+      quarterData.quarter,
+      quarterData.year,
+      state.state,
+      state.miles.toFixed(2),
+      state.fuelPurchased?.toFixed(2) || '0.00',
+      quarterData.fleetMPG.toFixed(2),
+      state.taxableGallons.toFixed(2),
+      state.taxRate.toFixed(3),
+      state.taxPaidAtPump.toFixed(2),
+      state.liability.toFixed(2),
+    ]);
+    
+    // Add totals row
+    rows.push([
+      'TOTAL',
+      '',
+      '',
+      quarterData.totalMiles.toFixed(2),
+      quarterData.totalGallons.toFixed(2),
+      quarterData.fleetMPG.toFixed(2),
+      '',
+      '',
+      '',
+      quarterData.netLiability.toFixed(2),
+    ]);
+    
+    return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+  };
+
+  const generatePDFData = (): string => {
+    if (!quarterData) return '';
+    
     try {
-      const csvContent = generateQuarterlyCSV(quarterData);
-      const filename = `IFTA_Q${quarterData.quarter}_${quarterData.year}.csv`;
-      await exportToCSV(filename, csvContent);
-      Alert.alert('Success', 'Report exported successfully');
+      const stateRows = quarterData.stateBreakdown.map((state: any) => `
+        <tr>
+          <td>${state.state}</td>
+          <td>${state.miles.toFixed(2)}</td>
+          <td>${(state.fuelPurchased || 0).toFixed(2)}</td>
+          <td>${quarterData.fleetMPG.toFixed(2)}</td>
+          <td>${state.taxableGallons.toFixed(2)}</td>
+          <td>$${state.taxRate.toFixed(3)}</td>
+          <td>$${state.taxPaidAtPump.toFixed(2)}</td>
+          <td>$${state.liability.toFixed(2)}</td>
+        </tr>
+      `).join('');
+      
+      return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>IFTA Quarter Summary</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; margin-bottom: 30px; }
+            .totals { background: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 5px; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .footer { margin-top: 30px; font-size: 12px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>IFTA Quarter Summary – Q${quarterData.quarter} ${quarterData.year}</h1>
+            <p>Unit System: ${unitSystem.toUpperCase()} | Generated: ${new Date().toLocaleString()}</p>
+          </div>
+          
+          <div class="totals">
+            <h3>Summary Totals</h3>
+            <p><strong>Total Miles:</strong> ${formatDistance(quarterData.totalMiles, unitSystem)}</p>
+            <p><strong>Total Gallons:</strong> ${formatVolume(quarterData.totalGallons, unitSystem)}</p>
+            <p><strong>Fleet MPG:</strong> ${formatEfficiency(quarterData.fleetMPG, unitSystem)}</p>
+            <p><strong>Net Liability:</strong> $${quarterData.netLiability.toFixed(2)}</p>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>State</th>
+                <th>Miles</th>
+                <th>Gallons Purchased</th>
+                <th>Fleet MPG</th>
+                <th>Taxable Gallons</th>
+                <th>Tax Rate</th>
+                <th>Tax Paid At Pump</th>
+                <th>Liability</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${stateRows}
+            </tbody>
+          </table>
+          
+          <div class="footer">
+            <p>All distances computed with Haversine; state detection via reverse-geocoding (approx).</p>
+          </div>
+        </body>
+        </html>
+      `;
     } catch (error) {
-      console.error('Error exporting report:', error);
-      Alert.alert('Error', 'Failed to export report');
+      console.error('Error generating PDF data:', error);
+      return '';
     }
   };
 
@@ -140,15 +308,15 @@ export default function QuarterScreen() {
               </View>
 
               <View style={styles.summaryCard}>
-                <DollarSign size={24} color={quarterData.netTax >= 0 ? '#DC2626' : '#10B981'} />
+                <DollarSign size={24} color={quarterData.netLiability >= 0 ? '#DC2626' : '#10B981'} />
                 <Text style={[
                   styles.summaryValue,
-                  { color: quarterData.netTax >= 0 ? '#DC2626' : '#10B981' }
+                  { color: quarterData.netLiability >= 0 ? '#DC2626' : '#10B981' }
                 ]}>
-                  ${Math.abs(quarterData.netTax).toFixed(2)}
+                  ${Math.abs(quarterData.netLiability).toFixed(2)}
                 </Text>
                 <Text style={styles.summaryLabel}>
-                  {quarterData.netTax >= 0 ? 'Tax Owed' : 'Tax Refund'}
+                  {quarterData.netLiability >= 0 ? 'Tax Owed' : 'Tax Refund'}
                 </Text>
               </View>
             </View>
@@ -157,24 +325,28 @@ export default function QuarterScreen() {
           <View style={styles.taxBreakdownContainer}>
             <View style={styles.taxBreakdownHeader}>
               <Text style={styles.sectionTitle}>Tax Breakdown</Text>
-              <TouchableOpacity style={styles.exportButton} onPress={exportReport}>
-                <Download size={16} color="#FFFFFF" />
-                <Text style={styles.exportButtonText}>Export CSV</Text>
-              </TouchableOpacity>
+              <ExportButtons
+                csvData={generateCSVData()}
+                pdfData={generatePDFData()}
+                disabled={!canExportData}
+                onDisabledPress={handleDisabledExport}
+                quarter={selectedQuarter}
+                year={selectedYear}
+              />
             </View>
 
             <View style={styles.taxSummary}>
               <View style={styles.taxSummaryRow}>
                 <Text style={styles.taxSummaryLabel}>Total Tax Liability:</Text>
                 <Text style={styles.taxSummaryValue}>
-                  ${quarterData.taxLiability.toFixed(2)}
+                  ${quarterData.totalLiability.toFixed(2)}
                 </Text>
               </View>
               
               <View style={styles.taxSummaryRow}>
                 <Text style={styles.taxSummaryLabel}>Total Tax Credits:</Text>
                 <Text style={styles.taxSummaryValue}>
-                  ${quarterData.taxCredits.toFixed(2)}
+                  ${(quarterData.totalLiability - quarterData.netLiability).toFixed(2)}
                 </Text>
               </View>
               
@@ -185,9 +357,9 @@ export default function QuarterScreen() {
                 <Text style={[
                   styles.taxSummaryValue,
                   styles.netTaxValue,
-                  { color: quarterData.netTax >= 0 ? '#DC2626' : '#10B981' }
+                  { color: quarterData.netLiability >= 0 ? '#DC2626' : '#10B981' }
                 ]}>
-                  {quarterData.netTax >= 0 ? '' : '-'}${Math.abs(quarterData.netTax).toFixed(2)}
+                  {quarterData.netLiability >= 0 ? '' : '-'}${Math.abs(quarterData.netLiability).toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -211,7 +383,7 @@ export default function QuarterScreen() {
                     <View style={styles.stateHeader}>
                       <Text style={styles.stateName}>{state.state}</Text>
                       <Text style={styles.stateNetTax}>
-                        Net: ${(state.taxLiability - state.taxCredits).toFixed(2)}
+                        Net: ${state.liability.toFixed(2)}
                       </Text>
                     </View>
                     
@@ -223,7 +395,7 @@ export default function QuarterScreen() {
                       
                       <View style={styles.stateRow}>
                         <Text style={styles.stateLabel}>Fuel Purchased:</Text>
-                        <Text style={styles.stateValue}>{state.fuelPurchased.toFixed(1)} gal</Text>
+                        <Text style={styles.stateValue}>{(state.fuelPurchased || 0).toFixed(1)} gal</Text>
                       </View>
                       
                       <View style={styles.stateRow}>
@@ -234,14 +406,14 @@ export default function QuarterScreen() {
                       <View style={styles.stateRow}>
                         <Text style={styles.stateLabel}>Tax Liability:</Text>
                         <Text style={[styles.stateValue, { color: '#DC2626' }]}>
-                          ${state.taxLiability.toFixed(2)}
+                          ${(state.taxRate * state.taxableGallons).toFixed(2)}
                         </Text>
                       </View>
                       
                       <View style={styles.stateRow}>
                         <Text style={styles.stateLabel}>Tax Credits:</Text>
                         <Text style={[styles.stateValue, { color: '#10B981' }]}>
-                          ${state.taxCredits.toFixed(2)}
+                          ${state.taxPaidAtPump.toFixed(2)}
                         </Text>
                       </View>
                     </View>
