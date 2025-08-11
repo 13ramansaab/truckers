@@ -62,7 +62,7 @@ export const getActiveTrip = async (): Promise<Trip | null> => {
 
     return {
       id: data.id,
-      startDate: data.start_date + 'T00:00:00.000Z',
+      startDate: (data.started_at ?? (data.start_date ? (data.start_date + 'T00:00:00.000Z') : null)) || new Date().toISOString(),
       endDate: data.end_date ? data.end_date + 'T00:00:00.000Z' : undefined,
       startLocation: {
         latitude: data.start_lat ? Number(data.start_lat) : 0,
