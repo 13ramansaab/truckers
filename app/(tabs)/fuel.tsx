@@ -3,27 +3,41 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { Fuel, Calendar, MapPin, Trash2, DollarSign } from 'lucide-react-native';
 import FuelEntryForm from '@/components/FuelEntryForm';
 import { getAllFuelEntries, deleteFuelEntry as deleteFuelEntryFromDb } from '@/utils/database';
+import { loadThemeColors } from '@/utils/theme';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 export default function FuelScreen() {
   const [fuelEntries, setFuelEntries] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [colors, setColors] = useState<any>(null);
   const mounted = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
-    loadFuelEntries();
     
     return () => {
       mounted.current = false;
     };
   }, []);
 
+  // Load data when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      loadFuelEntries();
+    }, [])
+  );
+
   const loadFuelEntries = async () => {
     if (mounted.current) {
       setIsLoading(true);
     }
     try {
+      // Load theme colors
+      const themeColors = await loadThemeColors();
+      if (mounted.current) setColors(themeColors);
+      
       const fuelData = await getAllFuelEntries();
       if (mounted.current) {
         setFuelEntries(fuelData);
@@ -64,40 +78,40 @@ export default function FuelScreen() {
   const totalCost = fuelEntries.reduce((sum, entry) => sum + entry.totalCost, 0);
   const avgPricePerGallon = totalGallons > 0 ? totalCost / totalGallons : 0;
 
-  if (isLoading) {
+  if (isLoading || !colors) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: '#111827' }]}>
         <Text style={styles.loadingText}>Loading fuel entries...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Fuel Tracking</Text>
-        <Text style={styles.subtitle}>Log and manage fuel purchases</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Fuel Tracking</Text>
+        <Text style={[styles.subtitle, { color: colors.muted }]}>Log and manage fuel purchases</Text>
       </View>
 
       <View style={styles.summaryContainer}>
-        <View style={styles.summaryCard}>
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
-              <Fuel size={20} color="#3B82F6" />
-              <Text style={styles.summaryValue}>{totalGallons.toFixed(1)}</Text>
-              <Text style={styles.summaryLabel}>Total Gallons</Text>
+              <Fuel size={20} color={colors.primary} />
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{totalGallons.toFixed(1)}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.muted }]}>Total Gallons</Text>
             </View>
             
             <View style={styles.summaryItem}>
               <DollarSign size={20} color="#10B981" />
-              <Text style={styles.summaryValue}>${totalCost.toFixed(2)}</Text>
-              <Text style={styles.summaryLabel}>Total Cost</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>${totalCost.toFixed(2)}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.muted }]}>Total Cost</Text>
             </View>
             
             <View style={styles.summaryItem}>
               <Calendar size={20} color="#F59E0B" />
-              <Text style={styles.summaryValue}>${avgPricePerGallon.toFixed(3)}</Text>
-              <Text style={styles.summaryLabel}>Avg $/Gal</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>${avgPricePerGallon.toFixed(3)}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.muted }]}>Avg $/Gal</Text>
             </View>
           </View>
         </View>
@@ -105,10 +119,10 @@ export default function FuelScreen() {
 
       <View style={styles.actionContainer}>
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
           onPress={() => setShowForm(!showForm)}
         >
-          <Text style={styles.addButtonText}>
+          <Text style={[styles.addButtonText, { color: colors.onPrimary }]}>
             {showForm ? 'Hide Form' : 'Add Fuel Entry'}
           </Text>
         </TouchableOpacity>
@@ -124,49 +138,49 @@ export default function FuelScreen() {
       )}
 
       <View style={styles.entriesContainer}>
-        <Text style={styles.sectionTitle}>Fuel History</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Fuel History</Text>
         
         {fuelEntries.length === 0 ? (
-          <View style={styles.emptyState}>
+          <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
             <Fuel size={48} color="#6B7280" />
-            <Text style={styles.emptyStateText}>No fuel entries</Text>
-            <Text style={styles.emptyStateSubtext}>
+            <Text style={[styles.emptyStateText, { color: colors.text }]}>No fuel entries</Text>
+            <Text style={[styles.emptyStateSubtext, { color: colors.muted }]}>
               Add your first fuel purchase to get started
             </Text>
           </View>
         ) : (
           <View style={styles.entriesList}>
             {fuelEntries.map((entry: any) => (
-              <View key={entry.id} style={styles.entryCard}>
+              <View key={entry.id} style={[styles.entryCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.entryHeader}>
                   <View style={styles.entryInfo}>
-                    <Text style={styles.entryDate}>
+                    <Text style={[styles.entryDate, { color: colors.text }]}>
                       {new Date(entry.date).toLocaleDateString()}
                     </Text>
-                    <Text style={styles.entryState}>{entry.state}</Text>
+                    <Text style={[styles.entryState, { color: colors.primary }]}>{entry.state}</Text>
                   </View>
                   
                   <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={() => handleDeleteFuelEntry(entry.id)}
                   >
-                    <Trash2 size={16} color="#DC2626" />
+                    <Trash2 size={16} color={colors.danger} />
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.entryDetails}>
                   <View style={styles.entryRow}>
-                    <Text style={styles.entryLabel}>Gallons:</Text>
-                    <Text style={styles.entryValue}>{entry.gallons.toFixed(2)}</Text>
+                    <Text style={[styles.entryLabel, { color: colors.muted }]}>Gallons:</Text>
+                    <Text style={[styles.entryValue, { color: colors.text }]}>{entry.gallons.toFixed(2)}</Text>
                   </View>
                   
                   <View style={styles.entryRow}>
-                    <Text style={styles.entryLabel}>Price/Gal:</Text>
-                    <Text style={styles.entryValue}>${entry.pricePerGallon.toFixed(3)}</Text>
+                    <Text style={[styles.entryLabel, { color: colors.muted }]}>Price/Gal:</Text>
+                    <Text style={[styles.entryValue, { color: colors.text }]}>${entry.pricePerGallon.toFixed(3)}</Text>
                   </View>
                   
                   <View style={styles.entryRow}>
-                    <Text style={styles.entryLabel}>Total:</Text>
+                    <Text style={[styles.entryLabel, { color: colors.muted }]}>Total:</Text>
                     <Text style={[styles.entryValue, styles.totalValue]}>
                       ${entry.totalCost.toFixed(2)}
                     </Text>
@@ -174,25 +188,25 @@ export default function FuelScreen() {
                 </View>
 
                 <View style={styles.locationInfo}>
-                  <MapPin size={14} color="#9CA3AF" />
-                  <Text style={styles.locationText}>{entry.location || 'Unknown'}</Text>
+                  <MapPin size={14} color={colors.muted} />
+                  <Text style={[styles.locationText, { color: colors.muted }]}>{entry.location || 'Unknown'}</Text>
                 </View>
 
                 {entry.odometer && (
                   <View style={styles.odometerInfo}>
-                    <Text style={styles.odometerText}>Odometer: {entry.odometer.toLocaleString()} mi</Text>
+                    <Text style={[styles.odometerText, { color: colors.muted }]}>Odometer: {entry.odometer.toLocaleString()} mi</Text>
                   </View>
                 )}
 
                 {entry.receiptPhoto && (
                   <View style={styles.receiptInfo}>
-                    <Text style={styles.receiptText}>📄 Receipt attached</Text>
+                    <Text style={[styles.receiptText, { color: '#10B981' }]}>📄 Receipt attached</Text>
                   </View>
                 )}
 
                 {entry.notes && entry.notes.trim() ? (
                   <View style={styles.notesSection}>
-                    <Text style={styles.notesText}>{entry.notes}</Text>
+                    <Text style={[styles.notesText, { color: colors.text }]}>{entry.notes}</Text>
                   </View>
                 ) : null}
               </View>
@@ -207,19 +221,16 @@ export default function FuelScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
   },
   header: {
     padding: 20,
     paddingTop: 60,
   },
   title: {
-    color: '#FFFFFF',
     fontSize: 28,
     fontWeight: 'bold',
   },
   subtitle: {
-    color: '#9CA3AF',
     fontSize: 16,
     marginTop: 4,
   },
@@ -228,7 +239,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   summaryCard: {
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 16,
   },
@@ -241,12 +251,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   summaryValue: {
-    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: 'bold',
   },
   summaryLabel: {
-    color: '#9CA3AF',
     fontSize: 12,
     textAlign: 'center',
   },
@@ -255,13 +263,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   addButton: {
-    backgroundColor: '#3B82F6',
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
   },
   addButtonText: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -270,26 +276,22 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 16,
   },
   emptyState: {
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 32,
     alignItems: 'center',
   },
   emptyStateText: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '500',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyStateSubtext: {
-    color: '#9CA3AF',
     fontSize: 14,
     textAlign: 'center',
   },
@@ -297,7 +299,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   entryCard: {
-    backgroundColor: '#1F2937',
     borderRadius: 12,
     padding: 16,
   },
@@ -313,12 +314,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   entryDate: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
   entryState: {
-    color: '#3B82F6',
     fontSize: 14,
     fontWeight: '500',
   },
@@ -335,11 +334,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   entryLabel: {
-    color: '#9CA3AF',
     fontSize: 14,
   },
   entryValue: {
-    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',
   },
@@ -354,14 +351,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   locationText: {
-    color: '#9CA3AF',
     fontSize: 14,
   },
   notesSection: {
     marginTop: 8,
   },
   notesText: {
-    color: '#FFFFFF',
     fontSize: 14,
     fontStyle: 'italic',
   },
@@ -369,20 +364,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   odometerText: {
-    color: '#9CA3AF',
     fontSize: 12,
   },
   receiptInfo: {
     marginBottom: 8,
   },
   receiptText: {
-    color: '#10B981',
     fontSize: 12,
     fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#111827',
     justifyContent: 'center',
     alignItems: 'center',
   },

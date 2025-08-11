@@ -4,10 +4,12 @@ import { MapPin, Clock, Trash2 } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import TripTracker from '@/components/TripTracker';
 import { getAllTrips, deleteTripFromDb } from '@/utils/database';
+import { loadThemeColors } from '@/utils/theme';
 
 export default function TripScreen() {
   const [trips, setTrips] = useState<any[]>([]);
   const [isBootstrapping, setIsBootstrapping] = useState(true); // spinner only for first load
+  const [colors, setColors] = useState<any>(null);
 
   const mounted = useRef(false);
   const inFlight = useRef(false);
@@ -46,6 +48,10 @@ export default function TripScreen() {
     }
 
     try {
+      // Load theme colors
+      const themeColors = await loadThemeColors();
+      if (mounted.current) setColors(themeColors);
+      
       const tripsData = await getAllTrips();
       if (mounted.current && Array.isArray(tripsData)) {
         applyTripsIfChanged(tripsData);
@@ -113,9 +119,9 @@ export default function TripScreen() {
     );
   }, [loadTrips]);
 
-  if (isBootstrapping) {
+  if (isBootstrapping || !colors) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: '#111827' }]}>
         <Text style={styles.loadingText}>Loading trips...</Text>
       </View>
     );
@@ -131,30 +137,30 @@ export default function TripScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Trip Tracking</Text>
-        <Text style={styles.subtitle}>Manage your trips and routes</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Trip Tracking</Text>
+        <Text style={[styles.subtitle, { color: colors.muted }]}>Manage your trips and routes</Text>
       </View>
 
       {/* IMPORTANT: Only this screen controls the tracker */}
       <TripTracker onTripUpdate={triggerLoadTripsDebounced} />
 
       <View style={styles.tripsContainer}>
-        <Text style={styles.sectionTitle}>Trip History</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Trip History</Text>
 
         {trips.length === 0 ? (
-          <View style={styles.emptyState}>
+          <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
             <MapPin size={48} color="#6B7280" />
-            <Text style={styles.emptyStateText}>No trips recorded</Text>
-            <Text style={styles.emptyStateSubtext}>
+            <Text style={[styles.emptyStateText, { color: colors.text }]}>No trips recorded</Text>
+            <Text style={[styles.emptyStateSubtext, { color: colors.muted }]}>
               Start your first trip to begin tracking
             </Text>
           </View>
         ) : (
           <View style={styles.tripsList}>
             {trips.map((trip: any) => (
-              <View key={trip.id} style={styles.tripCard}>
+              <View key={trip.id} style={[styles.tripCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.tripHeader}>
                   <View style={styles.tripStatus}>
                     <View
@@ -163,7 +169,7 @@ export default function TripScreen() {
                         { backgroundColor: trip.isActive ? '#10B981' : '#6B7280' },
                       ]}
                     />
-                    <Text style={styles.tripDate}>
+                    <Text style={[styles.tripDate, { color: colors.text }]}>
                       {new Date(trip.startDate).toLocaleDateString()}
                     </Text>
                   </View>
@@ -172,36 +178,36 @@ export default function TripScreen() {
                     style={styles.deleteButton}
                     onPress={() => deleteTrip(trip.id)}
                   >
-                    <Trash2 size={16} color="#DC2626" />
+                    <Trash2 size={16} color={colors.danger} />
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.tripDetails}>
                   <View style={styles.tripStat}>
-                    <MapPin size={16} color="#3B82F6" />
-                    <Text style={styles.tripStatText}>
+                    <MapPin size={16} color={colors.primary} />
+                    <Text style={[styles.tripStatText, { color: colors.muted }]}>
                       {trip.totalMiles.toFixed(1)} miles
                     </Text>
                   </View>
 
                   <View style={styles.tripStat}>
                     <Clock size={16} color="#F59E0B" />
-                    <Text style={styles.tripStatText}>
+                    <Text style={[styles.tripStatText, { color: colors.muted }]}>
                       {formatDuration(trip.startDate, trip.endDate)}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.locationInfo}>
-                  <Text style={styles.locationLabel}>From:</Text>
-                  <Text style={styles.locationText} numberOfLines={1}>
+                  <Text style={[styles.locationLabel, { color: colors.muted }]}>From:</Text>
+                  <Text style={[styles.locationText, { color: colors.text }]} numberOfLines={1}>
                     {trip.startLocation?.address || 'Unknown'}
                   </Text>
 
                   {trip.endLocation?.address ? (
                     <>
-                      <Text style={styles.locationLabel}>To:</Text>
-                      <Text style={styles.locationText} numberOfLines={1}>
+                      <Text style={[styles.locationLabel, { color: colors.muted }]}>To:</Text>
+                      <Text style={[styles.locationText, { color: colors.text }]} numberOfLines={1}>
                         {trip.endLocation.address}
                       </Text>
                     </>
@@ -210,8 +216,8 @@ export default function TripScreen() {
 
                 {trip.notes && trip.notes.trim() ? (
                   <View style={styles.notesSection}>
-                    <Text style={styles.notesLabel}>Notes:</Text>
-                    <Text style={styles.notesText}>{trip.notes}</Text>
+                    <Text style={[styles.notesLabel, { color: colors.muted }]}>Notes:</Text>
+                    <Text style={[styles.notesText, { color: colors.text }]}>{trip.notes}</Text>
                   </View>
                 ) : null}
               </View>
@@ -224,31 +230,31 @@ export default function TripScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#111827' },
+  container: { flex: 1 },
   header: { padding: 20, paddingTop: 60 },
-  title: { color: '#FFFFFF', fontSize: 28, fontWeight: 'bold' },
-  subtitle: { color: '#9CA3AF', fontSize: 16, marginTop: 4 },
+  title: { fontSize: 28, fontWeight: 'bold' },
+  subtitle: { fontSize: 16, marginTop: 4 },
   tripsContainer: { paddingHorizontal: 16, marginBottom: 24 },
-  sectionTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginBottom: 16 },
-  emptyState: { backgroundColor: '#1F2937', borderRadius: 12, padding: 32, alignItems: 'center' },
-  emptyStateText: { color: '#FFFFFF', fontSize: 18, fontWeight: '500', marginTop: 16, marginBottom: 8 },
-  emptyStateSubtext: { color: '#9CA3AF', fontSize: 14, textAlign: 'center' },
+  sectionTitle: { fontSize: 20, fontWeight: '600', marginBottom: 16 },
+  emptyState: { borderRadius: 12, padding: 32, alignItems: 'center' },
+  emptyStateText: { fontSize: 18, fontWeight: '500', marginTop: 16, marginBottom: 8 },
+  emptyStateSubtext: { fontSize: 14, textAlign: 'center' },
   tripsList: { gap: 12 },
-  tripCard: { backgroundColor: '#1F2937', borderRadius: 12, padding: 16 },
+  tripCard: { borderRadius: 12, padding: 16 },
   tripHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   tripStatus: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  tripDate: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  tripDate: { fontSize: 16, fontWeight: '600' },
   deleteButton: { padding: 4 },
   tripDetails: { flexDirection: 'row', gap: 16, marginBottom: 12 },
   tripStat: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tripStatText: { color: '#9CA3AF', fontSize: 14 },
+  tripStatText: { fontSize: 14 },
   locationInfo: { marginBottom: 8 },
-  locationLabel: { color: '#9CA3AF', fontSize: 12, marginTop: 4 },
-  locationText: { color: '#FFFFFF', fontSize: 14 },
+  locationLabel: { fontSize: 12, marginTop: 4 },
+  locationText: { fontSize: 14 },
   notesSection: { marginTop: 8 },
-  notesLabel: { color: '#9CA3AF', fontSize: 12 },
-  notesText: { color: '#FFFFFF', fontSize: 14, fontStyle: 'italic' },
-  loadingContainer: { flex: 1, backgroundColor: '#111827', justifyContent: 'center', alignItems: 'center' },
+  notesLabel: { fontSize: 12 },
+  notesText: { fontSize: 14, fontStyle: 'italic' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: '#FFFFFF', fontSize: 18 },
 });

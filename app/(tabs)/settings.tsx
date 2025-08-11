@@ -30,8 +30,6 @@ export default function SettingsScreen() {
   const loadSettings = async () => {
     try {
       await ensureTrialStart();
-      const themeColors = await loadThemeColors();
-      setColors(themeColors);
       
       const savedUnitSystem = await getUnit();
       const savedTheme = await getTheme();
@@ -46,6 +44,10 @@ export default function SettingsScreen() {
       setTrialDaysLeft(remainingDays);
       setTrialActive(isActive);
       setSubscribed(isSub);
+      
+      // Load theme colors after setting theme state
+      const themeColors = await loadThemeColors();
+      setColors(themeColors);
     } catch (error) {
       console.error('Error loading settings:', error);
     }
@@ -67,7 +69,7 @@ export default function SettingsScreen() {
       await setTheme(nextTheme);
       setThemeState(nextTheme);
       
-      // Reload theme colors
+      // Reload theme colors immediately after theme change
       const themeColors = await loadThemeColors();
       setColors(themeColors);
     } catch (error) {
@@ -155,86 +157,100 @@ export default function SettingsScreen() {
 
   if (!colors) {
     return (
-      <View style={[styles.container, { backgroundColor: '#111827' }]}>
-        <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: '#111827' }]}>
+        <View style={styles.loadingContent}>
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </View>
     );
   }
 
+  const dynamicStyles = createDynamicStyles(colors);
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
-        <Text style={styles.subtitle}>Customize your experience</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
+        <Text style={[styles.subtitle, { color: colors.muted }]}>Customize your experience</Text>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Preferences</Text>
+      <View style={[styles.section, { backgroundColor: colors.background }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Preferences</Text>
         
-        <View style={styles.settingItem}>
+        <View style={[styles.settingItem, { backgroundColor: colors.surface }]}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Unit System</Text>
-            <Text style={styles.settingDescription}>Choose between US and Metric units</Text>
+            <Text style={[styles.settingLabel, { color: colors.text }]}>Unit System</Text>
+            <Text style={[styles.settingDescription, { color: colors.muted }]}>Choose between US and Metric units</Text>
           </View>
           <View style={styles.unitToggle}>
             <TouchableOpacity
-              style={[styles.unitButton, unitSystem === 'us' && styles.unitButtonActive]}
+              style={[
+                dynamicStyles.unitButton,
+                unitSystem === 'us' && { backgroundColor: colors.primary, borderColor: colors.primary }
+              ]}
               onPress={() => handleUnitSystemChange('us')}
             >
-              <Text style={[styles.unitButtonText, unitSystem === 'us' && styles.unitButtonTextActive]}>
+              <Text style={[
+                styles.unitButtonText,
+                { color: unitSystem === 'us' ? colors.onPrimary : colors.muted }
+              ]}>
                 US
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.unitButton, unitSystem === 'metric' && styles.unitButtonActive]}
+              style={[
+                dynamicStyles.unitButton,
+                unitSystem === 'metric' && { backgroundColor: colors.primary, borderColor: colors.primary }
+              ]}
               onPress={() => handleUnitSystemChange('metric')}
             >
-              <Text style={[styles.unitButtonText, unitSystem === 'metric' && styles.unitButtonTextActive]}>
+              <Text style={[
+                styles.unitButtonText,
+                { color: unitSystem === 'metric' ? colors.onPrimary : colors.muted }
+              ]}>
                 Metric
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.settingItem}>
+        <View style={[styles.settingItem, { backgroundColor: colors.surface }]}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Theme</Text>
-            <Text style={styles.settingDescription}>Choose app theme preference</Text>
+            <Text style={[styles.settingLabel, { color: colors.text }]}>Theme</Text>
+            <Text style={[styles.settingDescription, { color: colors.muted }]}>Choose app theme preference</Text>
           </View>
           <TouchableOpacity
-            style={styles.themeButton}
+            style={[dynamicStyles.themeButton]}
             onPress={handleThemeChange}
           >
-            <Text style={styles.themeButtonText}>
+            <Text style={[styles.themeButtonText, { color: colors.text }]}>
               {theme === 'system' ? 'System' : theme === 'light' ? 'Light' : 'Dark'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.settingItem}>
+        <View style={[styles.settingItem, { backgroundColor: colors.surface }]}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>High Accuracy GPS</Text>
-            <Text style={styles.settingDescription}>Use high precision GPS (may drain battery faster)</Text>
+            <Text style={[styles.settingLabel, { color: colors.text }]}>High Accuracy GPS</Text>
+            <Text style={[styles.settingDescription, { color: colors.muted }]}>Use high precision GPS (may drain battery faster)</Text>
           </View>
           <Switch
             value={highAccuracy}
             onValueChange={handleHighAccuracyChange}
-            trackColor={{ false: '#374151', true: '#3B82F6' }}
-            thumbColor={highAccuracy ? '#FFFFFF' : '#9CA3AF'}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            thumbColor={highAccuracy ? colors.onPrimary : colors.muted}
           />
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Trial & Subscription</Text>
+      <View style={[styles.section, { backgroundColor: colors.background }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Trial & Subscription</Text>
         
-        <View style={styles.trialStatus}>
-          <Text style={styles.trialStatusTitle}>
+        <View style={[styles.trialStatus, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.trialStatusTitle, { color: colors.text }]}>
             {subscribed ? 'Subscribed' : trialActive ? `Trial Active: ${trialDaysLeft} days left` : 'Trial Expired'}
           </Text>
-          <Text style={styles.trialStatusDescription}>
+          <Text style={[styles.trialStatusDescription, { color: colors.muted }]}>
             {subscribed 
               ? 'Full access to all features' 
               : trialActive 
@@ -245,11 +261,11 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      <View style={styles.section}>
+      <View style={[styles.section, { backgroundColor: colors.background }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Permissions</Text>
         
         <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={requestLocationPermission}>
-          <MapPin size={20} color="#3B82F6" />
+          <MapPin size={20} color={colors.primary} />
           <View style={styles.actionInfo}>
             <Text style={[styles.actionLabel, { color: colors.text }]}>Request Location Permission</Text>
             <Text style={[styles.actionDescription, { color: colors.muted }]}>Allow location access for trip tracking</Text>
@@ -257,7 +273,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={openOSSettings}>
-          <Smartphone size={20} color="#6366F1" />
+          <Smartphone size={20} color={colors.primary} />
           <View style={styles.actionInfo}>
             <Text style={[styles.actionLabel, { color: colors.text }]}>Open System Settings</Text>
             <Text style={[styles.actionDescription, { color: colors.muted }]}>Manage app permissions in system settings</Text>
@@ -265,11 +281,11 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.section}>
+      <View style={[styles.section, { backgroundColor: colors.background }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
         
         <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={clearCache}>
-          <Database size={20} color="#F59E0B" />
+          <Database size={20} color={colors.primary} />
           <View style={styles.actionInfo}>
             <Text style={[styles.actionLabel, { color: colors.text }]}>Clear Cache</Text>
             <Text style={[styles.actionDescription, { color: colors.muted }]}>Clear app preferences and trial data</Text>
@@ -277,11 +293,11 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.section}>
+      <View style={[styles.section, { backgroundColor: colors.background }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Support</Text>
         
         <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={showAbout}>
-          <Info size={20} color="#6366F1" />
+          <Info size={20} color={colors.primary} />
           <View style={styles.actionInfo}>
             <Text style={[styles.actionLabel, { color: colors.text }]}>About</Text>
             <Text style={[styles.actionDescription, { color: colors.muted }]}>App version and information</Text>
@@ -290,7 +306,7 @@ export default function SettingsScreen() {
       </View>
 
       {__DEV__ && (
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: colors.background }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Development Tools</Text>
           {(() => {
             try {
@@ -317,12 +333,22 @@ export default function SettingsScreen() {
 
 const createDynamicStyles = (colors: any) => StyleSheet.create({
   unitButton: {
+    backgroundColor: colors.border,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 6,
-    minWidth: 50,
-    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  themeButton: {
     backgroundColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
 });
 
@@ -333,6 +359,9 @@ const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
     alignItems: 'center',
   },
   loadingText: {
@@ -415,17 +444,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 8,
     padding: 2,
+    gap: 8,
   },
   unitButtonText: {
     fontSize: 14,
     fontWeight: '500',
-  },
-  themeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center',
   },
   themeButtonText: {
     fontSize: 14,
