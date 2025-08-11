@@ -285,11 +285,6 @@ export const getTaxRate = async (
   }
 };
 
-// Location point operations (placeholder for future)
-export const insertLocationPoint = async (point: LocationPoint, tripId: string) => {
-  console.log('Location point logged:', point, tripId);
-};
-
 export const getTripLocationPoints = async (_tripId: string): Promise<LocationPoint[]> => {
   return [];
 };
