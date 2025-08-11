@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { Trip, FuelPurchase, LocationPoint } from '@/types';
+import { getCurrentLocation, reverseGeocode, getStateFromCoords } from '@/utils/location';
+
 
 // Initialize database - check connection
 export const initializeDatabase = async () => {
