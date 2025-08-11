@@ -8,7 +8,6 @@ import { useCallback } from 'react';
 import { Platform } from 'react-native';
 import { getUnit, setUnit, getTheme, setTheme, getGpsHighAccuracy, setGpsHighAccuracy } from '@/utils/prefs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DevDataGenerator from '@/components/DevDataGenerator';
 
 export default function SettingsScreen() {
   const [theme, setThemeState] = useState<'system' | 'light' | 'dark'>('system');
@@ -260,7 +259,18 @@ export default function SettingsScreen() {
       {__DEV__ && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Development Tools</Text>
-          <DevDataGenerator />
+          {(() => {
+            try {
+              const DevDataGenerator = require('@/components/DevDataGenerator').default;
+              return <DevDataGenerator />;
+            } catch (error) {
+              return (
+                <Text style={styles.actionDescription}>
+                  DevDataGenerator not available
+                </Text>
+              );
+            }
+          })()}
         </View>
       )}
 
