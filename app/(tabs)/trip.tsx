@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { MapPin, Clock, Trash2 } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import TripTracker from '@/components/TripTracker';
-import { getAllTrips, deleteTrip as deleteTripFromDb } from '@/utils/database';
+import { getAllTrips, deleteTripFromDb } from '@/utils/database';
 
 export default function TripScreen() {
   const [trips, setTrips] = useState<any[]>([]);
