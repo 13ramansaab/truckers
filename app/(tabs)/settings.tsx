@@ -47,19 +47,31 @@ export default function SettingsScreen() {
   };
 
   const handleUnitSystemChange = async (newUnitSystem: 'us' | 'metric') => {
-    setUnitSystem(newUnitSystem);
-    await setUnit(newUnitSystem);
+    try {
+      await setUnit(newUnitSystem);
+      setUnitSystem(newUnitSystem);
+    } catch (error) {
+      console.error('Error saving unit system:', error);
+    }
   };
 
   const handleThemeChange = async () => {
-    const nextTheme = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system';
-    setThemeState(nextTheme);
-    await setTheme(nextTheme);
+    try {
+      const nextTheme = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system';
+      await setTheme(nextTheme);
+      setThemeState(nextTheme);
+    } catch (error) {
+      console.error('Error saving theme:', error);
+    }
   };
 
   const handleHighAccuracyChange = async (value: boolean) => {
-    setHighAccuracy(value);
-    await setGpsHighAccuracy(value);
+    try {
+      await setGpsHighAccuracy(value);
+      setHighAccuracy(value);
+    } catch (error) {
+      console.error('Error saving GPS accuracy:', error);
+    }
   };
 
   const requestLocationPermission = async () => {
