@@ -52,9 +52,6 @@ export default function TripTracker({ onTripUpdate }: Props) {
       // Get GPS accuracy preference
       const high = await getGpsHighAccuracy();
       
-      // Get GPS accuracy preference
-      const high = await getGpsHighAccuracy();
-      
       // Reset tracking state
       lastSamplePoint.current = null;
       lastSampleTime.current = 0;
