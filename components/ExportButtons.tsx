@@ -195,6 +195,7 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'flex-end',
     flexWrap: 'wrap',
+    flexWrap: 'wrap',
   },
   button: {
     flexDirection: 'row',
@@ -203,7 +204,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     gap: 6,
-    flex: 1,
   },
   csvButton: {
     backgroundColor: '#10B981',

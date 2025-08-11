@@ -7,6 +7,7 @@ import { requestLocationPermissions, getCurrentLocation, reverseGeocode, getStat
 import { getActiveTrip, insertTrip, updateTrip, insertLocationPoint } from '@/utils/database';
 import { shouldSample, isNoisyJump, haversineMi, bucketMilesByState } from '@/utils/ifta';
 import { getGpsHighAccuracy } from '@/utils/prefs';
+import { getGpsHighAccuracy } from '@/utils/prefs';
 import type { Trip } from '@/types';
 
 type Props = {
@@ -49,6 +50,9 @@ export default function TripTracker({ onTripUpdate }: Props) {
 
   const startLocationTracking = useCallback(async (tripId: string) => {
     try {
+      // Get GPS accuracy preference
+      const high = await getGpsHighAccuracy();
+      
       // Get GPS accuracy preference
       const high = await getGpsHighAccuracy();
       

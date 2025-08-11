@@ -9,6 +9,7 @@ import { canExport, daysLeft, ensureTrialStart } from '@/utils/trial';
 import { formatDistance, formatVolume, formatEfficiency } from '@/utils/units';
 import ExportButtons from '@/components/ExportButtons';
 import { getUnit } from '@/utils/prefs';
+import { getUnit } from '@/utils/prefs';
 
 function getQuarterRange(year: number, q: number) {
   const m0 = (q - 1) * 3;
@@ -59,7 +60,7 @@ export default function QuarterScreen() {
   const generateReport = async (quarter: number, year: number) => {
     setLoading(true);
     try {
-      // Load unit system each time
+      // Load unit system from preferences
       const currentUnitSystem = await getUnit();
       setUnitSystem(currentUnitSystem);
       
@@ -117,12 +118,12 @@ export default function QuarterScreen() {
       // Calculate total fuel cost
       const totalFuelCost = fuelEntries.reduce((sum, fuel) => sum + fuel.totalCost, 0);
       
-      // Set totals
+      // Set totals with proper values even if zero
       const computedTotals = {
-        miles: iftaResult.totalMiles,
-        gallons: iftaResult.totalGallons,
-        fleetMPG: iftaResult.fleetMPG,
-        net: iftaResult.netLiability,
+        miles: iftaResult.totalMiles || 0,
+        gallons: iftaResult.totalGallons || 0,
+        fleetMPG: iftaResult.fleetMPG || 0,
+        net: iftaResult.netLiability || 0,
       };
       setTotals(computedTotals);
       
@@ -141,6 +142,8 @@ export default function QuarterScreen() {
       });
     } catch (error) {
       console.error('Error generating report:', error);
+      // Set empty totals on error
+      setTotals({ miles: 0, gallons: 0, fleetMPG: 0, net: 0 });
       Alert.alert('Error', 'Failed to generate quarterly report');
     } finally {
       setLoading(false);

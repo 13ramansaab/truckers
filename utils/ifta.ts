@@ -25,6 +25,52 @@ export interface IFTAResult {
   netLiability: number;
 }
 
+/**
+ * Normalize jurisdiction input to IFTA codes
+ * US: AL, AK, AZ, AR, CA, CO, CT, DE, FL, GA, HI, ID, IL, IN, IA, KS, KY, LA, ME, MD, MA, MI, MN, MS, MO, MT, NE, NV, NH, NJ, NM, NY, NC, ND, OH, OK, OR, PA, RI, SC, SD, TN, TX, UT, VT, VA, WA, WV, WI, WY
+ * CA: AB, BC, MB, NB, NL, NT, NS, NU, ON, PE, QC, SK, YT
+ */
+export const normalizeJurisdiction = (input: string): string | 'UNK' => {
+  if (!input || typeof input !== 'string') return 'UNK';
+  
+  const clean = input.trim().toUpperCase();
+  
+  // US state mappings
+  const usStates: Record<string, string> = {
+    'ALABAMA': 'AL', 'ALASKA': 'AK', 'ARIZONA': 'AZ', 'ARKANSAS': 'AR',
+    'CALIFORNIA': 'CA', 'COLORADO': 'CO', 'CONNECTICUT': 'CT', 'DELAWARE': 'DE',
+    'FLORIDA': 'FL', 'GEORGIA': 'GA', 'HAWAII': 'HI', 'IDAHO': 'ID',
+    'ILLINOIS': 'IL', 'INDIANA': 'IN', 'IOWA': 'IA', 'KANSAS': 'KS',
+    'KENTUCKY': 'KY', 'LOUISIANA': 'LA', 'MAINE': 'ME', 'MARYLAND': 'MD',
+    'MASSACHUSETTS': 'MA', 'MICHIGAN': 'MI', 'MINNESOTA': 'MN', 'MISSISSIPPI': 'MS',
+    'MISSOURI': 'MO', 'MONTANA': 'MT', 'NEBRASKA': 'NE', 'NEVADA': 'NV',
+    'NEW HAMPSHIRE': 'NH', 'NEW JERSEY': 'NJ', 'NEW MEXICO': 'NM', 'NEW YORK': 'NY',
+    'NORTH CAROLINA': 'NC', 'NORTH DAKOTA': 'ND', 'OHIO': 'OH', 'OKLAHOMA': 'OK',
+    'OREGON': 'OR', 'PENNSYLVANIA': 'PA', 'RHODE ISLAND': 'RI', 'SOUTH CAROLINA': 'SC',
+    'SOUTH DAKOTA': 'SD', 'TENNESSEE': 'TN', 'TEXAS': 'TX', 'UTAH': 'UT',
+    'VERMONT': 'VT', 'VIRGINIA': 'VA', 'WASHINGTON': 'WA', 'WEST VIRGINIA': 'WV',
+    'WISCONSIN': 'WI', 'WYOMING': 'WY'
+  };
+  
+  // Canadian province mappings
+  const caProvinces: Record<string, string> = {
+    'ALBERTA': 'AB', 'BRITISH COLUMBIA': 'BC', 'MANITOBA': 'MB', 'NEW BRUNSWICK': 'NB',
+    'NEWFOUNDLAND AND LABRADOR': 'NL', 'NORTHWEST TERRITORIES': 'NT', 'NOVA SCOTIA': 'NS',
+    'NUNAVUT': 'NU', 'ONTARIO': 'ON', 'PRINCE EDWARD ISLAND': 'PE', 'QUEBEC': 'QC',
+    'SASKATCHEWAN': 'SK', 'YUKON': 'YT'
+  };
+  
+  // Check if already a valid code
+  const validCodes = [...Object.values(usStates), ...Object.values(caProvinces)];
+  if (validCodes.includes(clean)) return clean;
+  
+  // Try full name lookup
+  if (usStates[clean]) return usStates[clean];
+  if (caProvinces[clean]) return caProvinces[clean];
+  
+  return 'UNK';
+};
+
 // Haversine distance calculation in miles
 export const haversineMi = (
   a: { lat: number; lng: number },

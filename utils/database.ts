@@ -287,8 +287,8 @@ export const getTripLocationPoints = async (_tripId: string): Promise<LocationPo
 // Quarter helpers
 export const getQuarterTrips = async (year: number, quarter: number): Promise<Trip[]> => {
   try {
-    const quarterStart = new Date(year, (quarter - 1) * 3, 1);
-    const quarterEnd = new Date(year, quarter * 3, 0, 23, 59, 59);
+    const quarterStart = new Date(Date.UTC(year, (quarter - 1) * 3, 1));
+    const quarterEnd = new Date(Date.UTC(year, quarter * 3, 0, 23, 59, 59, 999));
 
     const { data, error } = await supabase
       .from('trips')
@@ -311,8 +311,8 @@ export const getQuarterTrips = async (year: number, quarter: number): Promise<Tr
 
 export const getQuarterFuelPurchases = async (year: number, quarter: number): Promise<FuelPurchase[]> => {
   try {
-    const quarterStart = new Date(year, (quarter - 1) * 3, 1);
-    const quarterEnd = new Date(year, quarter * 3, 0, 23, 59, 59);
+    const quarterStart = new Date(Date.UTC(year, (quarter - 1) * 3, 1));
+    const quarterEnd = new Date(Date.UTC(year, quarter * 3, 0, 23, 59, 59, 999));
 
     const { data, error } = await supabase
       .from('fuel_purchases')
