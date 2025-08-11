@@ -63,11 +63,12 @@ export const getActiveTrip = async (): Promise<Trip | null> => {
     return {
       id: data.id,
       startDate: (data.started_at ?? (data.start_date ? (data.start_date + 'T00:00:00.000Z') : null)) || new Date().toISOString(),
-      endDate: data.end_date ? data.end_date + 'T00:00:00.000Z' : undefined,
+      endDate: data.ended_at ?? (data.end_date ? (data.end_date + 'T00:00:00.000Z') : undefined),
       startLocation: {
         latitude: data.start_lat ? Number(data.start_lat) : 0,
         longitude: data.start_lng ? Number(data.start_lng) : 0,
         address: data.start_address || 'Unknown',
+        state: data.start_state || 'Unknown',
       },
       endLocation: undefined,
       points: [],
@@ -98,12 +99,13 @@ export const getAllTrips = async (): Promise<Trip[]> => {
 
     return data.map(trip => ({
       id: trip.id,
-      startDate: trip.start_date + 'T00:00:00.000Z',
-      endDate: trip.end_date ? trip.end_date + 'T00:00:00.000Z' : undefined,
+      startDate: (data.started_at ?? (data.start_date ? (data.start_date + 'T00:00:00.000Z') : null)) || new Date().toISOString(),
+      endDate: data.ended_at ?? (data.end_date ? (data.end_date + 'T00:00:00.000Z') : undefined),
       startLocation: {
         latitude: trip.start_lat ? Number(trip.start_lat) : 0,
         longitude: trip.start_lng ? Number(trip.start_lng) : 0,
         address: trip.start_address || 'Unknown',
+        state: data.start_state || 'Unknown',
       },
       endLocation: undefined,
       points: [],
