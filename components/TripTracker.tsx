@@ -2,8 +2,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Play, Square } from 'lucide-react-native';
+import * as Location from 'expo-location';
 import { requestLocationPermissions, getCurrentLocation, reverseGeocode, getStateFromCoords } from '@/utils/location';
-import { getActiveTrip, insertTrip, updateTrip } from '@/utils/database';
+import { getActiveTrip, insertTrip, updateTrip, insertLocationPoint } from '@/utils/database';
+import { shouldSample, isNoisyJump, haversineMi, bucketMilesByState } from '@/utils/ifta';
 import type { Trip } from '@/types';
 
 type Props = {
@@ -12,6 +14,11 @@ type Props = {
 
 export default function TripTracker({ onTripUpdate }: Props) {
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
+  const locationWatcher = useRef<Location.LocationSubscription | null>(null);
+  const lastSamplePoint = useRef<any>(null);
+  const lastSampleTime = useRef<number>(0);
+  const locationPoints = useRef<any[]>([]);
+  const updateThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -23,7 +30,11 @@ export default function TripTracker({ onTripUpdate }: Props) {
     })();
     return () => {
       mounted.current = false;
+      if (locationWatcher.current) {
+        locationWatcher.current.remove();
+      }
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (updateThrottle.current) clearTimeout(updateThrottle.current);
     };
   }, []);
 
@@ -34,6 +45,81 @@ export default function TripTracker({ onTripUpdate }: Props) {
       onTripUpdate?.();
     }, 300);
   }, [onTripUpdate]);
+
+  const startLocationTracking = useCallback(async (tripId: string) => {
+    try {
+      // Reset tracking state
+      lastSamplePoint.current = null;
+      lastSampleTime.current = 0;
+      locationPoints.current = [];
+      
+      locationWatcher.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 15000, // Expo minimum
+          distanceInterval: 200, // Expo minimum
+        },
+        async (location) => {
+          const now = Date.now();
+          const newPoint = {
+            lat: location.coords.latitude,
+            lng: location.coords.longitude,
+            timestamp: now,
+            state: 'Unknown', // Will be updated below
+          };
+          
+          // Apply sampling policy
+          if (!shouldSample(lastSamplePoint.current, newPoint, lastSampleTime.current, now)) {
+            return;
+          }
+          
+          // Check for noisy jumps
+          if (lastSamplePoint.current && isNoisyJump(lastSamplePoint.current, newPoint, (now - lastSampleTime.current) / 1000)) {
+            console.warn('Ignoring noisy GPS jump');
+            return;
+          }
+          
+          // Get state for this location
+          const state = await getStateFromCoords({ latitude: newPoint.lat, longitude: newPoint.lng });
+          newPoint.state = state;
+          
+          // Accept the point
+          lastSamplePoint.current = newPoint;
+          lastSampleTime.current = now;
+          locationPoints.current.push(newPoint);
+          
+          // Optional: persist to database
+          await insertLocationPoint(tripId, {
+            lat: newPoint.lat,
+            lng: newPoint.lng,
+            state: newPoint.state,
+            ts: new Date(now),
+          });
+          
+          // Throttled update notification
+          if (!updateThrottle.current) {
+            updateThrottle.current = setTimeout(() => {
+              notifyParent();
+              updateThrottle.current = null;
+            }, 5000); // Max once per 5 seconds
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Error starting location tracking:', error);
+    }
+  }, [notifyParent]);
+
+  const stopLocationTracking = useCallback(() => {
+    if (locationWatcher.current) {
+      locationWatcher.current.remove();
+      locationWatcher.current = null;
+    }
+    if (updateThrottle.current) {
+      clearTimeout(updateThrottle.current);
+      updateThrottle.current = null;
+    }
+  }, []);
 
   const handleStart = useCallback(async () => {
     try {
@@ -78,12 +164,17 @@ export default function TripTracker({ onTripUpdate }: Props) {
       const fresh = await getActiveTrip();
       if (mounted.current) setActiveTrip(fresh);
 
+      // Start location tracking
+      if (fresh?.id) {
+        await startLocationTracking(fresh.id);
+      }
+
       notifyParent();
     } catch (e: any) {
       console.error('Error starting trip:', e);
       Alert.alert('Error', e?.message ?? 'Failed to start trip');
     }
-  }, [notifyParent]);
+  }, [notifyParent, startLocationTracking]);
 
   const handleStop = useCallback(async () => {
     try {
@@ -91,6 +182,20 @@ export default function TripTracker({ onTripUpdate }: Props) {
       if (!current) {
         Alert.alert('Info', 'No active trip to stop.');
         return;
+      }
+
+      // Stop location tracking
+      stopLocationTracking();
+      
+      // Calculate final miles from collected points
+      if (locationPoints.current.length > 1) {
+        const milesByState = bucketMilesByState(locationPoints.current);
+        const totalMiles = Object.values(milesByState).reduce((sum, miles) => sum + miles, 0);
+        
+        await updateTrip(current.id, {
+          totalMiles,
+          milesByState,
+        });
       }
 
       const endIso = new Date().toISOString();
@@ -108,7 +213,7 @@ export default function TripTracker({ onTripUpdate }: Props) {
       console.error('Error stopping trip:', e);
       Alert.alert('Error', e?.message ?? 'Failed to stop trip');
     }
-  }, [notifyParent]);
+  }, [notifyParent, stopLocationTracking]);
 
   return (
     <View style={styles.card}>
