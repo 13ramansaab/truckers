@@ -11,9 +11,9 @@ export async function ensureTrialStart() {
 
 export async function daysLeft() {
   const v = await AsyncStorage.getItem(KEY);
-  if (!v) return 14;
+  if (!v) return 3;
   const d = (Date.now() - Date.parse(v)) / (1000 * 60 * 60 * 24);
-  return Math.max(0, 14 - Math.floor(d));
+  return Math.max(0, 3 - Math.floor(d));
 }
 
 export async function isTrialActive() {
@@ -21,9 +21,13 @@ export async function isTrialActive() {
 }
 
 export async function isSubscribed() {
-  return false; // stub
+  const { hasActiveSubscription } = await import('./iap');
+  return await hasActiveSubscription();
 }
 
 export async function canExport() {
-  return (await isTrialActive()) || (await isSubscribed());
+  return (await isTrialActive()) || (await hasActiveSubscription());
 }
+
+// Re-export for convenience
+export { hasActiveSubscription } from './iap';

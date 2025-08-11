@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Linking } from 'react-native';
-import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone } from 'lucide-react-native';
-import { daysLeft, isTrialActive, isSubscribed, ensureTrialStart } from '@/utils/trial';
+import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone, Crown, RefreshCw } from 'lucide-react-native';
+import { daysLeft, isTrialActive, hasActiveSubscription, ensureTrialStart } from '@/utils/trial';
+import { getSubscriptionState, restorePurchases } from '@/utils/iap';
 import { requestLocationPermissions } from '@/utils/location';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
@@ -9,6 +10,7 @@ import { Platform } from 'react-native';
 import { getUnit, setUnit, getTheme, setTheme, getGpsHighAccuracy, setGpsHighAccuracy } from '@/utils/prefs';
 import { loadThemeColors } from '@/utils/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import SubscriptionModal from '@/components/SubscriptionModal';
 
 export default function SettingsScreen() {
   const [theme, setThemeState] = useState<'system' | 'light' | 'dark'>('system');
@@ -19,6 +21,9 @@ export default function SettingsScreen() {
   const [subscribed, setSubscribed] = useState(false);
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [colors, setColors] = useState<any>(null);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [subscriptionState, setSubscriptionState] = useState<any>(null);
+  const [restoring, setRestoring] = useState(false);
 
   // Load settings when screen focuses
   useFocusEffect(
@@ -36,7 +41,8 @@ export default function SettingsScreen() {
       const savedHighAccuracy = await getGpsHighAccuracy();
       const remainingDays = await daysLeft();
       const isActive = await isTrialActive();
-      const isSub = await isSubscribed();
+      const isSub = await hasActiveSubscription();
+      const subState = await getSubscriptionState();
       
       setUnitSystem(savedUnitSystem);
       setThemeState(savedTheme);
@@ -44,6 +50,7 @@ export default function SettingsScreen() {
       setTrialDaysLeft(remainingDays);
       setTrialActive(isActive);
       setSubscribed(isSub);
+      setSubscriptionState(subState);
       
       // Load theme colors after setting theme state
       const themeColors = await loadThemeColors();
@@ -114,10 +121,67 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleRestorePurchases = async () => {
+    setRestoring(true);
+    try {
+      const success = await restorePurchases();
+      if (success) {
+        Alert.alert('Success', 'Purchases restored successfully');
+        loadSettings(); // Refresh subscription state
+      } else {
+        Alert.alert('No Purchases', 'No previous purchases found to restore');
+      }
+    } catch (error) {
+      console.error('Error restoring purchases:', error);
+      Alert.alert('Error', 'Failed to restore purchases');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const handleSubscriptionModalClose = () => {
+    setShowSubscriptionModal(false);
+    loadSettings(); // Refresh subscription state
+  };
+
+  const getSubscriptionStatusText = () => {
+    if (!subscriptionState) return 'Loading...';
+    
+    if (subscriptionState.isSubscribed) {
+      if (subscriptionState.isInTrial) {
+        const trialEndDate = new Date(subscriptionState.trialEndDate);
+        const daysLeft = Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        return `Free trial: ${daysLeft} days left`;
+      } else {
+        return 'Active subscription';
+      }
+    } else if (trialActive) {
+      return `Trial: ${trialDaysLeft} days left`;
+    } else {
+      return 'No active subscription';
+    }
+  };
+
+  const getSubscriptionDescription = () => {
+    if (!subscriptionState) return 'Loading subscription status...';
+    
+    if (subscriptionState.isSubscribed) {
+      if (subscriptionState.isInTrial) {
+        return 'Enjoying your free trial with full access';
+      } else {
+        return 'Full access to all premium features';
+      }
+    } else if (trialActive) {
+      return 'Export features available during trial';
+    } else {
+      return 'Subscribe to unlock export features';
+    }
+  };
+
   const clearCache = async () => {
     Alert.alert(
       'Clear Cache',
-      'This will clear app preferences and trial data. Continue?',
+      'This will clear app preferences, trial data, and subscription state. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -128,13 +192,16 @@ export default function SettingsScreen() {
               // Clear settings and trial data
               await AsyncStorage.multiRemove([
                 'settings.unitSystem',
-                'trial.startedAt'
+                'trial.startedAt',
+                'iap.subscriptionState'
               ]);
               
               // Reset to defaults
               setUnitSystem('us');
-              setTrialDaysLeft(14);
+              setTrialDaysLeft(3);
               setTrialActive(true);
+              setSubscribed(false);
+              setSubscriptionState(null);
               
               Alert.alert('Success', 'Cache cleared successfully');
             } catch (error) {
@@ -150,7 +217,7 @@ export default function SettingsScreen() {
   const showAbout = () => {
     Alert.alert(
       'About Trucker Fuel Tax Calculator',
-      `Version ${appVersion}\n\nA comprehensive app for owner-operators to track trips, log fuel purchases, and calculate IFTA tax obligations.\n\nFeatures:\n• GPS trip tracking\n• Fuel purchase logging\n• Automatic tax calculations\n• Quarterly reporting\n• Data export capabilities`,
+      `Version ${appVersion}\n\nA comprehensive app for owner-operators to track trips, log fuel purchases, and calculate IFTA tax obligations.\n\nFeatures:\n• GPS trip tracking\n• Fuel purchase logging\n• Automatic tax calculations\n• Quarterly reporting\n• Data export capabilities\n• Premium subscription with 3-day free trial`,
       [{ text: 'OK' }]
     );
   };
@@ -244,21 +311,47 @@ export default function SettingsScreen() {
       </View>
 
       <View style={[styles.section, { backgroundColor: colors.background }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Trial & Subscription</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Subscription</Text>
         
         <View style={[styles.trialStatus, { backgroundColor: colors.surface }]}>
           <Text style={[styles.trialStatusTitle, { color: colors.text }]}>
-            {subscribed ? 'Subscribed' : trialActive ? `Trial Active: ${trialDaysLeft} days left` : 'Trial Expired'}
+            {getSubscriptionStatusText()}
           </Text>
           <Text style={[styles.trialStatusDescription, { color: colors.muted }]}>
-            {subscribed 
-              ? 'Full access to all features' 
-              : trialActive 
-                ? 'Export features available during trial'
-                : 'Subscribe to continue exporting reports'
-            }
+            {getSubscriptionDescription()}
           </Text>
         </View>
+
+        {!subscribed && (
+          <TouchableOpacity 
+            style={[styles.actionButton, { backgroundColor: colors.primary }]} 
+            onPress={() => setShowSubscriptionModal(true)}
+          >
+            <Crown size={20} color={colors.onPrimary} />
+            <View style={styles.actionInfo}>
+              <Text style={[styles.actionLabel, { color: colors.onPrimary }]}>Upgrade to Premium</Text>
+              <Text style={[styles.actionDescription, { color: colors.onPrimary, opacity: 0.8 }]}>
+                Start 3-day free trial - $9.99/month
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity 
+          style={[styles.actionButton, { backgroundColor: colors.surface }]} 
+          onPress={handleRestorePurchases}
+          disabled={restoring}
+        >
+          <RefreshCw size={20} color={restoring ? colors.muted : colors.primary} />
+          <View style={styles.actionInfo}>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>
+              {restoring ? 'Restoring...' : 'Restore Purchases'}
+            </Text>
+            <Text style={[styles.actionDescription, { color: colors.muted }]}>
+              Restore previous subscription purchases
+            </Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       <View style={[styles.section, { backgroundColor: colors.background }]}>
@@ -327,6 +420,12 @@ export default function SettingsScreen() {
         <Text style={[styles.footerText, { color: colors.text }]}>Trucker Fuel Tax Calculator</Text>
         <Text style={[styles.footerSubtext, { color: colors.muted }]}>Version {appVersion}</Text>
       </View>
+
+      <SubscriptionModal
+        visible={showSubscriptionModal}
+        onClose={handleSubscriptionModalClose}
+        onSubscribed={handleSubscriptionModalClose}
+      />
     </ScrollView>
   );
 }
