@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { FileText, Download, TrendingUp, DollarSign, Calculator } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 import { getQuarterTrips, getQuarterFuelPurchases, getTaxRatesSnapshot } from '@/utils/database';
 import { computeIFTA, bucketMilesByState } from '@/utils/ifta';
 import { canExport, daysLeft, ensureTrialStart } from '@/utils/trial';
 import { formatDistance, formatVolume, formatEfficiency } from '@/utils/units';
 import ExportButtons from '@/components/ExportButtons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getUnit } from '@/utils/prefs';
 
 function getQuarterRange(year: number, q: number) {
   const m0 = (q - 1) * 3;
@@ -23,6 +25,7 @@ export default function QuarterScreen() {
   const [canExportData, setCanExportData] = useState(false);
   const [trialDaysLeft, setTrialDaysLeft] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [totals, setTotals] = useState<any>(null);
 
   useEffect(() => {
     // Auto-detect current quarter
@@ -32,16 +35,21 @@ export default function QuarterScreen() {
     initializeApp();
   }, []);
 
+  // Reload when screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      generateReport(selectedQuarter, selectedYear);
+    }, [selectedQuarter, selectedYear])
+  );
+
   const initializeApp = async () => {
     await ensureTrialStart();
     const canExportStatus = await canExport();
     const trialDays = await daysLeft();
     
     // Load unit system from settings
-    const savedUnitSystem = await AsyncStorage.getItem('settings.unitSystem');
-    if (savedUnitSystem) {
-      setUnitSystem(savedUnitSystem as 'us' | 'metric');
-    }
+    const savedUnitSystem = await getUnit();
+    setUnitSystem(savedUnitSystem);
     
     setCanExportData(canExportStatus);
     setTrialDaysLeft(trialDays);
@@ -51,6 +59,10 @@ export default function QuarterScreen() {
   const generateReport = async (quarter: number, year: number) => {
     setLoading(true);
     try {
+      // Load unit system each time
+      const currentUnitSystem = await getUnit();
+      setUnitSystem(currentUnitSystem);
+      
       const trips = await getQuarterTrips(year, quarter);
       const fuelEntries = await getQuarterFuelPurchases(year, quarter);
       const taxRates = await getTaxRatesSnapshot(year, quarter);
@@ -104,6 +116,15 @@ export default function QuarterScreen() {
       
       // Calculate total fuel cost
       const totalFuelCost = fuelEntries.reduce((sum, fuel) => sum + fuel.totalCost, 0);
+      
+      // Set totals
+      const computedTotals = {
+        miles: iftaResult.totalMiles,
+        gallons: iftaResult.totalGallons,
+        fleetMPG: iftaResult.fleetMPG,
+        net: iftaResult.netLiability,
+      };
+      setTotals(computedTotals);
       
       setQuarterData({
         quarter,
@@ -219,7 +240,7 @@ export default function QuarterScreen() {
             <View style={styles.summaryGrid}>
               <View style={styles.summaryCard}>
                 <TrendingUp size={24} color="#3B82F6" />
-                <Text style={styles.summaryValue}>{quarterData.totalMiles.toFixed(0)}</Text>
+                <Text style={styles.summaryValue}>{totals.miles.toFixed(0)}</Text>
                 <Text style={styles.summaryLabel}>Total Miles</Text>
               </View>
 
@@ -231,20 +252,20 @@ export default function QuarterScreen() {
 
               <View style={styles.summaryCard}>
                 <Calculator size={24} color="#F59E0B" />
-                <Text style={styles.summaryValue}>{quarterData.fleetMPG.toFixed(1)}</Text>
+                <Text style={styles.summaryValue}>{totals.fleetMPG.toFixed(1)}</Text>
                 <Text style={styles.summaryLabel}>Avg MPG</Text>
               </View>
 
               <View style={styles.summaryCard}>
-                <DollarSign size={24} color={quarterData.netLiability >= 0 ? '#DC2626' : '#10B981'} />
+                <DollarSign size={24} color={totals.net >= 0 ? '#DC2626' : '#10B981'} />
                 <Text style={[
                   styles.summaryValue,
-                  { color: quarterData.netLiability >= 0 ? '#DC2626' : '#10B981' }
+                  { color: totals.net >= 0 ? '#DC2626' : '#10B981' }
                 ]}>
-                  ${Math.abs(quarterData.netLiability).toFixed(2)}
+                  ${Math.abs(totals.net).toFixed(2)}
                 </Text>
                 <Text style={styles.summaryLabel}>
-                  {quarterData.netLiability >= 0 ? 'Tax Owed' : 'Tax Refund'}
+                  {totals.net >= 0 ? 'Tax Owed' : 'Tax Refund'}
                 </Text>
               </View>
             </View>

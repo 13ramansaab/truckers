@@ -6,6 +6,7 @@ import * as Location from 'expo-location';
 import { requestLocationPermissions, getCurrentLocation, reverseGeocode, getStateFromCoords } from '@/utils/location';
 import { getActiveTrip, insertTrip, updateTrip, insertLocationPoint } from '@/utils/database';
 import { shouldSample, isNoisyJump, haversineMi, bucketMilesByState } from '@/utils/ifta';
+import { getGpsHighAccuracy } from '@/utils/prefs';
 import type { Trip } from '@/types';
 
 type Props = {
@@ -48,6 +49,9 @@ export default function TripTracker({ onTripUpdate }: Props) {
 
   const startLocationTracking = useCallback(async (tripId: string) => {
     try {
+      // Get GPS accuracy preference
+      const high = await getGpsHighAccuracy();
+      
       // Reset tracking state
       lastSamplePoint.current = null;
       lastSampleTime.current = 0;
@@ -55,7 +59,7 @@ export default function TripTracker({ onTripUpdate }: Props) {
       
       locationWatcher.current = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
+          accuracy: high ? Location.Accuracy.BestForNavigation : Location.Accuracy.Balanced,
           timeInterval: 15000, // Expo minimum
           distanceInterval: 200, // Expo minimum
         },

@@ -193,6 +193,8 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     gap: 12,
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
   },
   button: {
     flexDirection: 'row',

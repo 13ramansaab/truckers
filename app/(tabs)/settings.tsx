@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Linking } from 'react-native';
 import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { daysLeft, isTrialActive, isSubscribed, ensureTrialStart } from '@/utils/trial';
 import { requestLocationPermissions } from '@/utils/location';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { Platform } from 'react-native';
+import { getUnit, setUnit, getTheme, setTheme, getGpsHighAccuracy, setGpsHighAccuracy } from '@/utils/prefs';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen() {
-  const [autoStartTrips, setAutoStartTrips] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
+  const [theme, setThemeState] = useState<'system' | 'light' | 'dark'>('system');
   const [highAccuracy, setHighAccuracy] = useState(true);
   const [unitSystem, setUnitSystem] = useState<'us' | 'metric'>('us');
   const [trialDaysLeft, setTrialDaysLeft] = useState(0);
@@ -28,12 +28,16 @@ export default function SettingsScreen() {
   const loadSettings = async () => {
     try {
       await ensureTrialStart();
-      const savedUnitSystem = await AsyncStorage.getItem('settings.unitSystem');
+      const savedUnitSystem = await getUnit();
+      const savedTheme = await getTheme();
+      const savedHighAccuracy = await getGpsHighAccuracy();
       const remainingDays = await daysLeft();
       const isActive = await isTrialActive();
       const isSub = await isSubscribed();
       
-      setUnitSystem((savedUnitSystem as 'us' | 'metric') || 'us');
+      setUnitSystem(savedUnitSystem);
+      setThemeState(savedTheme);
+      setHighAccuracy(savedHighAccuracy);
       setTrialDaysLeft(remainingDays);
       setTrialActive(isActive);
       setSubscribed(isSub);
@@ -44,7 +48,18 @@ export default function SettingsScreen() {
 
   const handleUnitSystemChange = async (newUnitSystem: 'us' | 'metric') => {
     setUnitSystem(newUnitSystem);
-    await AsyncStorage.setItem('settings.unitSystem', newUnitSystem);
+    await setUnit(newUnitSystem);
+  };
+
+  const handleThemeChange = async () => {
+    const nextTheme = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system';
+    setThemeState(nextTheme);
+    await setTheme(nextTheme);
+  };
+
+  const handleHighAccuracyChange = async (value: boolean) => {
+    setHighAccuracy(value);
+    await setGpsHighAccuracy(value);
   };
 
   const requestLocationPermission = async () => {
@@ -152,28 +167,17 @@ export default function SettingsScreen() {
 
         <View style={styles.settingItem}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Dark Mode</Text>
-            <Text style={styles.settingDescription}>Use dark theme throughout the app</Text>
+            <Text style={styles.settingLabel}>Theme</Text>
+            <Text style={styles.settingDescription}>Choose app theme preference</Text>
           </View>
-          <Switch
-            value={darkMode}
-            onValueChange={setDarkMode}
-            trackColor={{ false: '#374151', true: '#3B82F6' }}
-            thumbColor={darkMode ? '#FFFFFF' : '#9CA3AF'}
-          />
-        </View>
-
-        <View style={styles.settingItem}>
-          <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Auto-Start Trips</Text>
-            <Text style={styles.settingDescription}>Automatically start trip tracking when moving</Text>
-          </View>
-          <Switch
-            value={autoStartTrips}
-            onValueChange={setAutoStartTrips}
-            trackColor={{ false: '#374151', true: '#3B82F6' }}
-            thumbColor={autoStartTrips ? '#FFFFFF' : '#9CA3AF'}
-          />
+          <TouchableOpacity
+            style={styles.themeButton}
+            onPress={handleThemeChange}
+          >
+            <Text style={styles.themeButtonText}>
+              {theme === 'system' ? 'System' : theme === 'light' ? 'Light' : 'Dark'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.settingItem}>
@@ -183,7 +187,7 @@ export default function SettingsScreen() {
           </View>
           <Switch
             value={highAccuracy}
-            onValueChange={setHighAccuracy}
+            onValueChange={handleHighAccuracyChange}
             trackColor={{ false: '#374151', true: '#3B82F6' }}
             thumbColor={highAccuracy ? '#FFFFFF' : '#9CA3AF'}
           />
@@ -371,6 +375,19 @@ const styles = StyleSheet.create({
   },
   unitButtonTextActive: {
     color: '#FFFFFF',
+  },
+  themeButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  themeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
   },
   trialStatus: {
     backgroundColor: '#1F2937',
