@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { getSession, onAuthChange, sendOtp, verifyOtp, signOut } from '@/utils/auth';
+import { getSession, onAuthChange, sendOtp, verifyOtp, signOut, signInWithOAuth } from '@/utils/auth';
 import { logInToPurchases, logOutFromPurchases } from '@/utils/iap';
 
 interface AuthGateProps {
@@ -79,6 +79,14 @@ export default function AuthGate({ children }: AuthGateProps) {
     }
   };
 
+  const handleOAuthSignIn = async (provider: 'google' | 'facebook') => {
+    try {
+      await signInWithOAuth(provider);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || `Failed to sign in with ${provider}`);
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await logOutFromPurchases();
@@ -121,6 +129,20 @@ export default function AuthGate({ children }: AuthGateProps) {
                 <Text style={styles.buttonText}>
                   {sending ? 'Sending...' : 'Send Code'}
                 </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.oauthButton}
+                onPress={() => handleOAuthSignIn('google')}
+              >
+                <Text style={styles.oauthButtonText}>Continue with Google</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.oauthButton}
+                onPress={() => handleOAuthSignIn('facebook')}
+              >
+                <Text style={styles.oauthButtonText}>Continue with Facebook</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -273,6 +295,18 @@ const styles = StyleSheet.create({
   signOutButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '500',
+  },
+  oauthButton: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  oauthButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '500',
   },
 });

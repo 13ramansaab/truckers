@@ -1,15 +1,13 @@
+import { Platform } from 'react-native';
 import { supabase } from './supabase';
+import { makeRedirectUri } from 'expo-auth-session';
 
 /**
  * Get the current session
  */
 export async function getSession() {
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (error) {
-    console.error('Error getting session:', error);
-    return null;
-  }
-  return session;
+  const { data } = await supabase.auth.getSession();
+  return data.session ?? null;
 }
 
 /**
@@ -17,14 +15,9 @@ export async function getSession() {
  * @param cb Callback function that receives the session
  * @returns Unsubscribe function
  */
-export function onAuthChange(cb: (session: any) => void): () => void {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    (event, session) => {
-      cb(session);
-    }
-  );
-  
-  return () => subscription.unsubscribe();
+export function onAuthChange(cb: (session: any) => void) {
+  const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => cb(sess));
+  return () => sub.subscription.unsubscribe();
 }
 
 /**
@@ -32,16 +25,12 @@ export function onAuthChange(cb: (session: any) => void): () => void {
  * @param email Email address to send OTP to
  */
 export async function sendOtp(email: string): Promise<void> {
-  const { error } = await supabase.auth.signInWithOtp({
+  await supabase.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: true,
     },
   });
-  
-  if (error) {
-    throw error;
-  }
 }
 
 /**
@@ -64,13 +53,28 @@ export async function verifyOtp(email: string, token: string): Promise<boolean> 
   return !!data?.session;
 }
 
+// OAuth (works in dev with proxy; real builds use scheme)
+function oauthRedirect() {
+  return makeRedirectUri({
+    scheme: 'myapp',
+    useProxy: Platform.select({ web: false, default: true }),
+  });
+}
+
+export async function signInWithOAuth(provider: 'google' | 'facebook') {
+  return supabase.auth.signInWithOAuth({
+    provider,
+    options: { 
+      redirectTo: oauthRedirect(), 
+      skipBrowserRedirect: false, 
+      queryParams: { prompt: 'consent' } 
+    }
+  });
+}
+
 /**
  * Sign out the current user
  */
 export async function signOut(): Promise<void> {
-  const { error } = await supabase.auth.signOut();
-  
-  if (error) {
-    throw error;
-  }
+  await supabase.auth.signOut();
 }
