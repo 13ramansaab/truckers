@@ -1,4 +1,3 @@
-// utils/iap.ts
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
@@ -63,5 +62,5 @@ export async function restore(): Promise<boolean> {
   return cachedPro;
 }
 
-// ✅ alias to fix callers expecting this name
+// Alias for existing calls
 export const getSubscriptionState = getProStatus;

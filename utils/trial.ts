@@ -1,33 +1,44 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const KEY = 'trial.startedAt';
+const TRIAL_KEY = 'trial.startedAt';
+const TRIAL_DAYS = 3;
 
-export async function ensureTrialStart() {
-  const v = await AsyncStorage.getItem(KEY);
-  if (!v) {
-    await AsyncStorage.setItem(KEY, new Date().toISOString());
+export async function ensureTrialStart(): Promise<void> {
+  const existing = await AsyncStorage.getItem(TRIAL_KEY);
+  if (!existing) {
+    await AsyncStorage.setItem(TRIAL_KEY, new Date().toISOString());
   }
 }
 
-export async function daysLeft() {
-  const v = await AsyncStorage.getItem(KEY);
-  if (!v) return 3;
-  const d = (Date.now() - Date.parse(v)) / (1000 * 60 * 60 * 24);
-  return Math.max(0, 3 - Math.floor(d));
+export async function daysLeft(): Promise<number> {
+  const startedAt = await AsyncStorage.getItem(TRIAL_KEY);
+  if (!startedAt) {
+    await ensureTrialStart();
+    return TRIAL_DAYS;
+  }
+  
+  const startTime = new Date(startedAt).getTime();
+  const now = Date.now();
+  const daysPassed = Math.floor((now - startTime) / (1000 * 60 * 60 * 24));
+  
+  return Math.max(0, TRIAL_DAYS - daysPassed);
 }
 
-export async function isTrialActive() {
+export async function isTrialActive(): Promise<boolean> {
   return (await daysLeft()) > 0;
 }
 
-export async function isSubscribed() {
-  const { hasActiveSubscription } = await import('./iap');
-  return await hasActiveSubscription();
+export async function canUseApp(): Promise<boolean> {
+  const { getProStatus } = await import('./iap');
+  return (await isTrialActive()) || (await getProStatus());
 }
 
-export async function canExport() {
-  return (await isTrialActive()) || (await hasActiveSubscription());
-}
+// Aliases for old callers
+export { canUseApp as hasActiveSubscription };
+export { canUseApp as canExport };
 
-// Export alias for compatibility
-export { canExport as hasActiveSubscription };
+// Legacy exports
+export async function isSubscribed(): Promise<boolean> {
+  const { getProStatus } = await import('./iap');
+  return await getProStatus();
+}

@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Linking } from 'react-native';
 import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone, Crown, RefreshCw } from 'lucide-react-native';
 import { getProStatus, getPackages, purchaseFirstAvailable, restore } from '@/utils/iap';
-import { daysLeft, isTrialActive, hasActiveSubscription, ensureTrialStart } from '@/utils/trial';
-import { getSubscriptionState, restorePurchases } from '@/utils/iap';
+import { daysLeft, isTrialActive, ensureTrialStart } from '@/utils/trial';
 import { requestLocationPermissions } from '@/utils/location';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
@@ -11,7 +10,6 @@ import { Platform } from 'react-native';
 import { getUnit, setUnit, getTheme, setTheme, getGpsHighAccuracy, setGpsHighAccuracy } from '@/utils/prefs';
 import { loadThemeColors } from '@/utils/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import SubscriptionModal from '@/components/SubscriptionModal';
 
 export default function SettingsScreen() {
   const [theme, setThemeState] = useState<'system' | 'light' | 'dark'>('system');
@@ -19,12 +17,8 @@ export default function SettingsScreen() {
   const [unitSystem, setUnitSystem] = useState<'us' | 'metric'>('us');
   const [trialDaysLeft, setTrialDaysLeft] = useState(0);
   const [trialActive, setTrialActive] = useState(false);
-  const [subscribed, setSubscribed] = useState(false);
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [colors, setColors] = useState<any>(null);
-  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  const [subscriptionState, setSubscriptionState] = useState<any>(null);
-  const [restoring, setRestoring] = useState(false);
   const [pro, setPro] = useState(false);
   const [price, setPrice] = useState<string | null>(null);
 
@@ -44,16 +38,12 @@ export default function SettingsScreen() {
       const savedHighAccuracy = await getGpsHighAccuracy();
       const remainingDays = await daysLeft();
       const isActive = await isTrialActive();
-      const isSub = await hasActiveSubscription();
-      const subState = await getSubscriptionState();
       
       setUnitSystem(savedUnitSystem);
       setThemeState(savedTheme);
       setHighAccuracy(savedHighAccuracy);
       setTrialDaysLeft(remainingDays);
       setTrialActive(isActive);
-      setSubscribed(isSub);
-      setSubscriptionState(subState);
       
       setPro(await getProStatus());
       const pkgs = await getPackages();
@@ -139,61 +129,14 @@ export default function SettingsScreen() {
     setPro(ok);
   };
 
-  const handleRestorePurchases = async () => {
-    setRestoring(true);
-    try {
-      const success = await restorePurchases();
-      if (success) {
-        Alert.alert('Success', 'Purchases restored successfully');
-        loadSettings(); // Refresh subscription state
-      } else {
-        Alert.alert('No Purchases', 'No previous purchases found to restore');
-      }
-    } catch (error) {
-      console.error('Error restoring purchases:', error);
-      Alert.alert('Error', 'Failed to restore purchases');
-    } finally {
-      setRestoring(false);
-    }
+  const onSubscribe = async () => {
+    const ok = await purchaseFirstAvailable();
+    setPro(ok);
   };
 
-  const handleSubscriptionModalClose = () => {
-    setShowSubscriptionModal(false);
-    loadSettings(); // Refresh subscription state
-  };
-
-  const getSubscriptionStatusText = () => {
-    if (!subscriptionState) return 'Loading...';
-    
-    if (subscriptionState.isSubscribed) {
-      if (subscriptionState.isInTrial) {
-        const trialEndDate = new Date(subscriptionState.trialEndDate);
-        const daysLeft = Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-        return `Free trial: ${daysLeft} days left`;
-      } else {
-        return 'Active subscription';
-      }
-    } else if (trialActive) {
-      return `Trial: ${trialDaysLeft} days left`;
-    } else {
-      return 'No active subscription';
-    }
-  };
-
-  const getSubscriptionDescription = () => {
-    if (!subscriptionState) return 'Loading subscription status...';
-    
-    if (subscriptionState.isSubscribed) {
-      if (subscriptionState.isInTrial) {
-        return 'Enjoying your free trial with full access';
-      } else {
-        return 'Full access to all premium features';
-      }
-    } else if (trialActive) {
-      return 'Export features available during trial';
-    } else {
-      return 'Subscribe to unlock export features';
-    }
+  const onRestore = async () => {
+    const ok = await restore();
+    setPro(ok);
   };
 
   const clearCache = async () => {
@@ -218,8 +161,6 @@ export default function SettingsScreen() {
               setUnitSystem('us');
               setTrialDaysLeft(3);
               setTrialActive(true);
-              setSubscribed(false);
-              setSubscriptionState(null);
               
               Alert.alert('Success', 'Cache cleared successfully');
             } catch (error) {
@@ -345,46 +286,6 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        
-        <View style={[styles.trialStatus, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.trialStatusTitle, { color: colors.text }]}>
-            {getSubscriptionStatusText()}
-          </Text>
-          <Text style={[styles.trialStatusDescription, { color: colors.muted }]}>
-            {getSubscriptionDescription()}
-          </Text>
-        </View>
-
-        {!subscribed && (
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: colors.primary }]} 
-            onPress={() => setShowSubscriptionModal(true)}
-          >
-            <Crown size={20} color={colors.onPrimary} />
-            <View style={styles.actionInfo}>
-              <Text style={[styles.actionLabel, { color: colors.onPrimary }]}>Upgrade to Premium</Text>
-              <Text style={[styles.actionDescription, { color: colors.onPrimary, opacity: 0.8 }]}>
-                Start 3-day free trial - $9.99/month
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity 
-          style={[styles.actionButton, { backgroundColor: colors.surface }]} 
-          onPress={handleRestorePurchases}
-          disabled={restoring}
-        >
-          <RefreshCw size={20} color={restoring ? colors.muted : colors.primary} />
-          <View style={styles.actionInfo}>
-            <Text style={[styles.actionLabel, { color: colors.text }]}>
-              {restoring ? 'Restoring...' : 'Restore Purchases'}
-            </Text>
-            <Text style={[styles.actionDescription, { color: colors.muted }]}>
-              Restore previous subscription purchases
-            </Text>
-          </View>
-        </TouchableOpacity>
       </View>
 
       <View style={[styles.section, { backgroundColor: colors.background }]}>
@@ -453,12 +354,6 @@ export default function SettingsScreen() {
         <Text style={[styles.footerText, { color: colors.text }]}>Trucker Fuel Tax Calculator</Text>
         <Text style={[styles.footerSubtext, { color: colors.muted }]}>Version {appVersion}</Text>
       </View>
-
-      <SubscriptionModal
-        visible={showSubscriptionModal}
-        onClose={handleSubscriptionModalClose}
-        onSubscribed={handleSubscriptionModalClose}
-      />
     </ScrollView>
   );
 }
@@ -585,17 +480,5 @@ const styles = StyleSheet.create({
   themeButtonText: {
     fontSize: 14,
     fontWeight: '500',
-  },
-  trialStatus: {
-    borderRadius: 12,
-    padding: 16,
-  },
-  trialStatusTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  trialStatusDescription: {
-    fontSize: 14,
   },
 });
