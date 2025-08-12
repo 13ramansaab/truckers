@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Linking } from 'react-native';
 import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone, Crown, RefreshCw } from 'lucide-react-native';
+import { getProStatus, getPackages, purchaseFirstAvailable, restore } from '@/utils/iap';
 import { daysLeft, isTrialActive, hasActiveSubscription, ensureTrialStart } from '@/utils/trial';
 import { getSubscriptionState, restorePurchases } from '@/utils/iap';
 import { requestLocationPermissions } from '@/utils/location';
@@ -24,6 +25,8 @@ export default function SettingsScreen() {
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [subscriptionState, setSubscriptionState] = useState<any>(null);
   const [restoring, setRestoring] = useState(false);
+  const [pro, setPro] = useState(false);
+  const [price, setPrice] = useState<string | null>(null);
 
   // Load settings when screen focuses
   useFocusEffect(
@@ -51,6 +54,11 @@ export default function SettingsScreen() {
       setTrialActive(isActive);
       setSubscribed(isSub);
       setSubscriptionState(subState);
+      
+      setPro(await getProStatus());
+      const pkgs = await getPackages();
+      const first = pkgs?.[0];
+      if (first?.product?.priceString) setPrice(first.product.priceString);
       
       // Load theme colors after setting theme state
       const themeColors = await loadThemeColors();
@@ -119,6 +127,16 @@ export default function SettingsScreen() {
       console.error('Error opening OS settings:', error);
       Alert.alert('Error', 'Could not open system settings');
     }
+  };
+
+  const onSubscribe = async () => {
+    const ok = await purchaseFirstAvailable();
+    setPro(ok);
+  };
+
+  const onRestore = async () => {
+    const ok = await restore();
+    setPro(ok);
   };
 
   const handleRestorePurchases = async () => {
@@ -312,6 +330,21 @@ export default function SettingsScreen() {
 
       <View style={[styles.section, { backgroundColor: colors.background }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Subscription</Text>
+        
+        <View style={{ backgroundColor: '#1F2937', borderRadius: 12, padding: 16, gap: 8 }}>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Subscription</Text>
+          <Text style={{ color: '#9CA3AF' }}>Status: {pro ? 'Active' : 'Not Active'}</Text>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+            <TouchableOpacity onPress={onSubscribe} style={{ backgroundColor: '#3B82F6', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 }}>
+              <Text style={{ color: '#fff', fontWeight: '600' }}>
+                {price ? `Subscribe (${price} / mo)` : 'Subscribe (3-day trial)'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onRestore} style={{ backgroundColor: '#374151', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 }}>
+              <Text style={{ color: '#fff', fontWeight: '600' }}>Restore Purchases</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
         
         <View style={[styles.trialStatus, { backgroundColor: colors.surface }]}>
           <Text style={[styles.trialStatusTitle, { color: colors.text }]}>

@@ -6,6 +6,7 @@ import { useCallback } from 'react';
 import { getQuarterTrips, getQuarterFuelPurchases, getTaxRatesSnapshot } from '@/utils/database';
 import { computeIFTA, bucketMilesByState } from '@/utils/ifta';
 import { canExport, daysLeft, ensureTrialStart } from '@/utils/trial';
+import { getProStatus } from '@/utils/iap';
 import { formatDistance, formatVolume, formatEfficiency, miToKm, galToL, mpgToKmPerL } from '@/utils/units';
 import ExportButtons from '@/components/ExportButtons';
 import { getUnit } from '@/utils/prefs';
@@ -62,7 +63,9 @@ export default function QuarterScreen() {
 
   const initializeApp = async () => {
     await ensureTrialStart();
-    const canExportStatus = await canExport();
+    const pro = await getProStatus();
+    const allowed = pro || (await canExport()); // trial fallback
+    const canExportStatus = allowed;
     const trialDays = await daysLeft();
     
     setCanExportData(canExportStatus);
