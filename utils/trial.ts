@@ -31,3 +31,6 @@ export async function canExport() {
 
 // Re-export for convenience
 export { hasActiveSubscription } from './iap';
+
+// NEW: add this line to fix callers expecting hasActiveSubscription()
+export const hasActiveSubscription = canExport;
