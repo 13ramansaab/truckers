@@ -1,28 +1,31 @@
 // utils/iap.ts
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
 
+const IS_EXPO_GO = Constants?.appOwnership === 'expo';
+const NATIVE_SUPPORTED = Platform.OS === 'ios' || Platform.OS === 'android';
+
 let inited = false;
-let cachedPro: boolean | null = null;
+let cachedPro = false;
+
+export function isPro(info?: CustomerInfo | null) {
+  return !!info?.entitlements?.active?.pro;
+}
 
 export async function initIAP() {
   if (inited) return;
+  if (!NATIVE_SUPPORTED || IS_EXPO_GO) { inited = true; return; } // skip in web/Expo Go
 
   if (Platform.OS === 'ios') {
     await Purchases.configure({ apiKey: 'appl_jdGcqdPCjFHqUcJKOJOzdWrYreI' });
-  } else if (Platform.OS === 'android') {
-    // add your Android public key when ready (goog_...)
-    // await Purchases.configure({ apiKey: 'goog_XXXXXXXX' });
-    return (inited = true);
   } else {
-    // web / unsupported: do nothing
-    return (inited = true);
+    // TODO: add Android public SDK key when ready (goog_...)
+    inited = true; 
+    return;
   }
-  
-  Purchases.addCustomerInfoUpdateListener((info) => {
-    cachedPro = isPro(info);
-  });
-  // prime cached status
+
+  Purchases.addCustomerInfoUpdateListener((info) => { cachedPro = isPro(info); });
   try {
     const info = await Purchases.getCustomerInfo();
     cachedPro = isPro(info);
@@ -30,53 +33,35 @@ export async function initIAP() {
   inited = true;
 }
 
-export function isPro(info: CustomerInfo | null | undefined) {
-  return !!info?.entitlements?.active?.pro;
-}
-
 export async function getProStatus(): Promise<boolean> {
-  if (Platform.OS !== 'web') {
-    await initIAP();
-  }
-  if (cachedPro != null) return cachedPro;
-  try {
-    if (Platform.OS !== 'web') {
-      const info = await Purchases.getCustomerInfo();
-      cachedPro = isPro(info);
-      return cachedPro;
-    }
-  } catch {
-  }
-  return false;
+  await initIAP();
+  return cachedPro; // false on web/Expo Go
 }
 
 export async function getPackages() {
-  if (Platform.OS !== 'web') {
-    await initIAP();
-    const offerings = await Purchases.getOfferings();
-    return offerings.current?.availablePackages ?? [];
-  }
-  return [];
+  await initIAP();
+  if (!NATIVE_SUPPORTED || IS_EXPO_GO) return [];
+  const offerings = await Purchases.getOfferings();
+  return offerings.current?.availablePackages ?? [];
 }
 
 export async function purchaseFirstAvailable(): Promise<boolean> {
-  if (Platform.OS !== 'web') {
-    await initIAP();
-    const pkgs = await getPackages();
-    if (!pkgs.length) return false;
-    const { customerInfo } = await Purchases.purchasePackage(pkgs[0]);
-    cachedPro = isPro(customerInfo);
-    return !!cachedPro;
-  }
-  return false;
+  await initIAP();
+  if (!NATIVE_SUPPORTED || IS_EXPO_GO) return false;
+  const pkgs = await getPackages();
+  if (!pkgs.length) return false;
+  const { customerInfo } = await Purchases.purchasePackage(pkgs[0]);
+  cachedPro = isPro(customerInfo);
+  return cachedPro;
 }
 
 export async function restore(): Promise<boolean> {
-  if (Platform.OS !== 'web') {
-    await initIAP();
-    const { customerInfo } = await Purchases.restorePurchases();
-    cachedPro = isPro(customerInfo);
-    return !!cachedPro;
-  }
-  return false;
+  await initIAP();
+  if (!NATIVE_SUPPORTED || IS_EXPO_GO) return false;
+  const { customerInfo } = await Purchases.restorePurchases();
+  cachedPro = isPro(customerInfo);
+  return cachedPro;
 }
+
+// ✅ alias to fix callers expecting this name
+export const getSubscriptionState = getProStatus;
