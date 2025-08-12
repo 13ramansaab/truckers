@@ -29,8 +29,5 @@ export async function canExport() {
   return (await isTrialActive()) || (await hasActiveSubscription());
 }
 
-// Re-export for convenience
-export { hasActiveSubscription } from './iap';
-
-// NEW: add this line to fix callers expecting hasActiveSubscription()
-export const hasActiveSubscription = canExport;
+// Export alias for compatibility
+export { canExport as hasActiveSubscription };
