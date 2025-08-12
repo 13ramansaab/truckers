@@ -16,7 +16,7 @@ export default function RootLayout() {
   useFrameworkReady();
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => {
+    const sub = AppState.addEventListener('change', s => {
       if (s === 'active') supabase.auth.startAutoRefresh();
       else supabase.auth.stopAutoRefresh();
     });

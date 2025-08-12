@@ -2,6 +2,25 @@ import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import { makeRedirectUri } from 'expo-auth-session';
 
+function oauthRedirect() {
+  // Use Expo proxy in Expo Go/dev; custom scheme in builds
+  return makeRedirectUri({
+    scheme: 'myapp',
+    useProxy: Platform.select({ web: false, default: true }),
+  });
+}
+
+export async function signInWithOAuth(provider: 'google'|'facebook') {
+  return supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: oauthRedirect(),
+      skipBrowserRedirect: false,
+      queryParams: { prompt: 'consent' },
+    },
+  });
+}
+
 /**
  * Get the current session
  */

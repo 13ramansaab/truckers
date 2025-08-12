@@ -87,6 +87,14 @@ export default function AuthGate({ children }: AuthGateProps) {
     }
   };
 
+  const handleOAuthSignIn = async (provider: 'google' | 'facebook') => {
+    try {
+      await signInWithOAuth(provider);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || `Failed to sign in with ${provider}`);
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await logOutFromPurchases();
@@ -129,6 +137,20 @@ export default function AuthGate({ children }: AuthGateProps) {
                 <Text style={styles.buttonText}>
                   {sending ? 'Sending...' : 'Send Code'}
                 </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.oauthButton}
+                onPress={() => handleOAuthSignIn('google')}
+              >
+                <Text style={styles.oauthButtonText}>Continue with Google</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.oauthButton}
+                onPress={() => handleOAuthSignIn('facebook')}
+              >
+                <Text style={styles.oauthButtonText}>Continue with Facebook</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
