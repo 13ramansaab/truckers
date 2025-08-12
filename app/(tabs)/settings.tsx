@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Linking } from 'react-native';
-import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone, Crown, RefreshCw } from 'lucide-react-native';
+import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone, Crown, RefreshCw, User, LogOut } from 'lucide-react-native';
 import { getProStatus, getPackages, purchaseFirstAvailable, restore } from '@/utils/iap';
 import { daysLeft, isTrialActive, ensureTrialStart } from '@/utils/trial';
 import { requestLocationPermissions } from '@/utils/location';
@@ -10,6 +10,8 @@ import { Platform } from 'react-native';
 import { getUnit, setUnit, getTheme, setTheme, getGpsHighAccuracy, setGpsHighAccuracy } from '@/utils/prefs';
 import { loadThemeColors } from '@/utils/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/utils/supabase';
+import { signOut } from '@/utils/auth';
 
 export default function SettingsScreen() {
   const [theme, setThemeState] = useState<'system' | 'light' | 'dark'>('system');
@@ -21,6 +23,7 @@ export default function SettingsScreen() {
   const [colors, setColors] = useState<any>(null);
   const [pro, setPro] = useState(false);
   const [price, setPrice] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Load settings when screen focuses
   useFocusEffect(
@@ -49,6 +52,15 @@ export default function SettingsScreen() {
       const pkgs = await getPackages();
       const first = pkgs?.[0];
       if (first?.product?.priceString) setPrice(first.product.priceString);
+      
+      // Get current user email
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUserEmail(user?.email || null);
+      } catch (error) {
+        console.error('Error getting user:', error);
+        setUserEmail(null);
+      }
       
       // Load theme colors after setting theme state
       const themeColors = await loadThemeColors();
@@ -171,6 +183,28 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleSignOut = async () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+            } catch (error) {
+              console.error('Error signing out:', error);
+              Alert.alert('Error', 'Failed to sign out');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (!colors) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: '#111827' }]}>
@@ -188,6 +222,28 @@ export default function SettingsScreen() {
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
         <Text style={[styles.subtitle, { color: colors.muted }]}>Customize your experience</Text>
+      </View>
+
+      <View style={[styles.section, { backgroundColor: colors.background }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Account</Text>
+        
+        <View style={[styles.settingItem, { backgroundColor: colors.surface }]}>
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingLabel, { color: colors.text }]}>Email</Text>
+            <Text style={[styles.settingDescription, { color: colors.muted }]}>
+              {userEmail || 'Not signed in'}
+            </Text>
+          </View>
+          <User size={20} color={colors.primary} />
+        </View>
+
+        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={handleSignOut}>
+          <LogOut size={20} color={colors.danger} />
+          <View style={styles.actionInfo}>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>Sign Out</Text>
+            <Text style={[styles.actionDescription, { color: colors.muted }]}>Sign out of your account</Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       <View style={[styles.section, { backgroundColor: colors.background }]}>
