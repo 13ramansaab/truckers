@@ -72,25 +72,6 @@ export async function verifyOtp(email: string, token: string): Promise<boolean> 
   return !!data?.session;
 }
 
-// OAuth (works in dev with proxy; real builds use scheme)
-function oauthRedirect() {
-  return makeRedirectUri({
-    scheme: 'myapp',
-    useProxy: Platform.select({ web: false, default: true }),
-  });
-}
-
-export async function signInWithOAuth(provider: 'google' | 'facebook') {
-  return supabase.auth.signInWithOAuth({
-    provider,
-    options: { 
-      redirectTo: oauthRedirect(), 
-      skipBrowserRedirect: false, 
-      queryParams: { prompt: 'consent' } 
-    }
-  });
-}
-
 /**
  * Sign out the current user
  */
