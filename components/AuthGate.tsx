@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { getSession, onAuthChange, signInWithEmailOtp, verifyEmailOtp, signOut } from '@/utils/auth';
+import { getSession, onAuthChange, sendOtp, verifyOtp, signOut } from '@/utils/auth';
 import { logInToPurchases, logOutFromPurchases } from '@/utils/iap';
 
 interface AuthGateProps {
@@ -50,7 +50,7 @@ export default function AuthGate({ children }: AuthGateProps) {
 
     setSending(true);
     try {
-      await signInWithEmailOtp(email);
+      await sendOtp(email);
       setStep('code');
       Alert.alert('Success', 'Check your email for the verification code');
     } catch (error: any) {
@@ -68,7 +68,7 @@ export default function AuthGate({ children }: AuthGateProps) {
 
     setVerifying(true);
     try {
-      const success = await verifyEmailOtp(email, code);
+      const success = await verifyOtp(email, code);
       if (!success) {
         Alert.alert('Error', 'Invalid verification code');
       }
@@ -126,7 +126,7 @@ export default function AuthGate({ children }: AuthGateProps) {
           ) : (
             <>
               <Text style={styles.subtitle}>
-                Enter the code sent to {email}
+                Enter the 6-digit code we emailed you
               </Text>
               <TextInput
                 style={styles.input}
@@ -143,6 +143,15 @@ export default function AuthGate({ children }: AuthGateProps) {
               >
                 <Text style={styles.buttonText}>
                   {verifying ? 'Verifying...' : 'Verify'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.resendButton, sending && styles.buttonDisabled]}
+                onPress={handleSendCode}
+                disabled={sending}
+              >
+                <Text style={styles.resendButtonText}>
+                  {sending ? 'Sending...' : 'Resend code'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -245,6 +254,15 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#9CA3AF',
     fontSize: 14,
+  },
+  resendButton: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  resendButtonText: {
+    color: '#3B82F6',
+    fontSize: 14,
+    fontWeight: '500',
   },
   signOutButton: {
     backgroundColor: '#374151',

@@ -31,7 +31,7 @@ export function onAuthChange(cb: (session: any) => void): () => void {
  * Send OTP to email
  * @param email Email address to send OTP to
  */
-export async function signInWithEmailOtp(email: string): Promise<void> {
+export async function sendOtp(email: string): Promise<void> {
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
@@ -50,7 +50,7 @@ export async function signInWithEmailOtp(email: string): Promise<void> {
  * @param token OTP token
  * @returns True if verification successful
  */
-export async function verifyEmailOtp(email: string, token: string): Promise<boolean> {
+export async function verifyOtp(email: string, token: string): Promise<boolean> {
   const { data, error } = await supabase.auth.verifyOtp({
     email,
     token,
@@ -58,11 +58,10 @@ export async function verifyEmailOtp(email: string, token: string): Promise<bool
   });
   
   if (error) {
-    console.error('Error verifying OTP:', error);
-    return false;
+    throw error;
   }
   
-  return !!data.session;
+  return !!data?.session;
 }
 
 /**
