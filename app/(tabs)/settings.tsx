@@ -129,16 +129,6 @@ export default function SettingsScreen() {
     setPro(ok);
   };
 
-  const onSubscribe = async () => {
-    const ok = await purchaseFirstAvailable();
-    setPro(ok);
-  };
-
-  const onRestore = async () => {
-    const ok = await restore();
-    setPro(ok);
-  };
-
   const clearCache = async () => {
     Alert.alert(
       'Clear Cache',
