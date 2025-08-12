@@ -5,7 +5,10 @@ import { LogBox } from 'react-native';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 
 if (__DEV__) {
-  LogBox.ignoreLogs([/ENOENT: .*<anonymous>/]);
+  LogBox.ignoreLogs([
+    /ENOENT: .*<anonymous>/,
+    'Failed to set an indexed property'
+  ]);
 }
 
 export default function RootLayout() {
