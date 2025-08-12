@@ -62,5 +62,24 @@ export async function restore(): Promise<boolean> {
   return cachedPro;
 }
 
+export async function logInToPurchases(userId: string): Promise<void> {
+  if (!NATIVE_SUPPORTED || IS_EXPO_GO) return;
+  await initIAP();
+  try {
+    await Purchases.logIn(userId);
+  } catch (error) {
+    console.warn('Failed to log in to RevenueCat:', error);
+  }
+}
+
+export async function logOutFromPurchases(): Promise<void> {
+  if (!NATIVE_SUPPORTED || IS_EXPO_GO) return;
+  try {
+    await Purchases.logOut();
+  } catch (error) {
+    console.warn('Failed to log out from RevenueCat:', error);
+  }
+}
+
 // Alias for existing calls
 export const getSubscriptionState = getProStatus;

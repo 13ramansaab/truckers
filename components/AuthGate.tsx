@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { getSession, onAuthChange, signInWithEmailOtp, verifyEmailOtp, signOut } from '@/utils/auth';
+import { logInToPurchases, logOutFromPurchases } from '@/utils/iap';
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -29,6 +30,12 @@ export default function AuthGate({ children }: AuthGateProps) {
         setStep('email');
         setEmail('');
         setCode('');
+        // Link RevenueCat to user
+        try {
+          logInToPurchases(session.user.id);
+        } catch (error) {
+          console.warn('Failed to link RevenueCat user:', error);
+        }
       }
     });
 
@@ -74,6 +81,7 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   const handleSignOut = async () => {
     try {
+      await logOutFromPurchases();
       await signOut();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to sign out');
