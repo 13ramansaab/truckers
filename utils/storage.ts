@@ -7,6 +7,12 @@ export interface ReceiptUploadResult {
 
 export const uploadReceiptImage = async (imageUri: string): Promise<ReceiptUploadResult> => {
   try {
+    // Get current user ID
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      throw new Error('User not authenticated');
+    }
+
     // Fetch the image as blob
     const response = await fetch(imageUri);
     const blob = await response.blob();
@@ -14,7 +20,7 @@ export const uploadReceiptImage = async (imageUri: string): Promise<ReceiptUploa
     // Generate unique filename
     const timestamp = Date.now();
     const filename = `receipt_${timestamp}.jpg`;
-    const filePath = `receipts/${filename}`;
+    const filePath = `receipts/user_${user.id}/${filename}`;
     
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
