@@ -67,7 +67,7 @@ export const insertTrip = async (trip: Trip) => {
     const started_at = trip.startDate ?? new Date().toISOString();
     const ended_at = trip.endDate ?? null;
 
-    // Let Postgres generate UUID by NOT sending id
+    // Let Postgres generate UUID by NOT sending id, and let user_id default to auth.uid()
     const payload: any = {
       name: trip.notes || null,
       start_date: (trip.startDate ?? new Date().toISOString()).split('T')[0],
@@ -80,6 +80,7 @@ export const insertTrip = async (trip: Trip) => {
       start_lng,
       start_address,
       start_state,
+      // user_id will be set by database default (auth.uid())
     };
 
     const { data, error } = await supabase
@@ -186,7 +187,7 @@ export const insertFuelPurchase = async (fuel: FuelPurchase) => {
     const receipt_path = (fuel as any).receiptPath ?? null;
     const receipt_url = (fuel as any).receiptUrl ?? (fuel as any).receiptPhoto ?? null;
 
-    // Do not send id - let DB generate UUID
+    // Do not send id or user_id - let DB generate UUID and set user_id to auth.uid()
     const payload: any = {
       date: fuel.date.split('T')[0],
       gallons: fuel.gallons,
@@ -198,6 +199,7 @@ export const insertFuelPurchase = async (fuel: FuelPurchase) => {
       odometer: fuel.odometer ?? null,
       receipt_path,
       receipt_url,
+      // user_id will be set by database default (auth.uid())
     };
 
     const { error } = await supabase.from('fuel_purchases').insert(payload);
@@ -412,6 +414,7 @@ export const insertLocationPoint = async (
       lng: point.lng,
       state: point.state,
       speed_mph: point.speed_mph || null,
+      // user_id will be set by database default (auth.uid())
     });
     if (error) {
       console.warn('Location points table not available:', error.message);
