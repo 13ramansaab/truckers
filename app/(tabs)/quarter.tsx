@@ -7,7 +7,7 @@ import { getQuarterTrips, getQuarterFuelPurchases, getTaxRatesSnapshot } from '@
 import { computeIFTA, bucketMilesByState } from '@/utils/ifta';
 import { formatDistance, formatVolume, formatEfficiency, miToKm, galToL, mpgToKmPerL } from '@/utils/units';
 import ExportButtons from '@/components/ExportButtons';
-import { getUnit } from '@/utils/prefs';
+import { getPreferredUnit, getPreferredCurrency } from '@/utils/prefs';
 import { loadThemeColors } from '@/utils/theme';
 
 function getQuarterRange(year: number, q: number) {
@@ -43,7 +43,7 @@ export default function QuarterScreen() {
   const loadPreferencesAndGenerateReport = async () => {
     try {
       const [unit, themeColors] = await Promise.all([
-        getUnit(),
+        getPreferredUnit(),
         loadThemeColors()
       ]);
       

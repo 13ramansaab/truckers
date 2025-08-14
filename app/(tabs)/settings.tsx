@@ -491,4 +491,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  countryToggle: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    padding: 2,
+    gap: 8,
+  },
+  countryButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  profileInfo: {
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  profileLabel: {
+    fontSize: 14,
+  },
+  profileValue: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
 });
