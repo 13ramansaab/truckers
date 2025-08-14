@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Linking } from 'react-native';
 import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone, Crown, RefreshCw, User, LogOut } from 'lucide-react-native';
-import { getProStatus, getPackages, purchaseFirstAvailable, restore } from '@/utils/iap';
-import { daysLeft, isTrialActive, ensureTrialStart } from '@/utils/trial';
 import { requestLocationPermissions } from '@/utils/location';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
@@ -17,12 +15,8 @@ export default function SettingsScreen() {
   const [theme, setThemeState] = useState<'system' | 'light' | 'dark'>('system');
   const [highAccuracy, setHighAccuracy] = useState(true);
   const [unitSystem, setUnitSystem] = useState<'us' | 'metric'>('us');
-  const [trialDaysLeft, setTrialDaysLeft] = useState(0);
-  const [trialActive, setTrialActive] = useState(false);
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [colors, setColors] = useState<any>(null);
-  const [pro, setPro] = useState(false);
-  const [price, setPrice] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Load settings when screen focuses
@@ -34,24 +28,13 @@ export default function SettingsScreen() {
 
   const loadSettings = async () => {
     try {
-      await ensureTrialStart();
-      
       const savedUnitSystem = await getUnit();
       const savedTheme = await getTheme();
       const savedHighAccuracy = await getGpsHighAccuracy();
-      const remainingDays = await daysLeft();
-      const isActive = await isTrialActive();
       
       setUnitSystem(savedUnitSystem);
       setThemeState(savedTheme);
       setHighAccuracy(savedHighAccuracy);
-      setTrialDaysLeft(remainingDays);
-      setTrialActive(isActive);
-      
-      setPro(await getProStatus());
-      const pkgs = await getPackages();
-      const first = pkgs?.[0];
-      if (first?.product?.priceString) setPrice(first.product.priceString);
       
       // Get current user email
       try {
@@ -131,16 +114,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const onSubscribe = async () => {
-    const ok = await purchaseFirstAvailable();
-    setPro(ok);
-  };
-
-  const onRestore = async () => {
-    const ok = await restore();
-    setPro(ok);
-  };
-
   const clearCache = async () => {
     Alert.alert(
       'Clear Cache',
@@ -161,8 +134,6 @@ export default function SettingsScreen() {
               
               // Reset to defaults
               setUnitSystem('us');
-              setTrialDaysLeft(3);
-              setTrialActive(true);
               
               Alert.alert('Success', 'Cache cleared successfully');
             } catch (error) {
@@ -312,25 +283,6 @@ export default function SettingsScreen() {
             trackColor={{ false: colors.border, true: colors.primary }}
             thumbColor={highAccuracy ? colors.onPrimary : colors.muted}
           />
-        </View>
-      </View>
-
-      <View style={[styles.section, { backgroundColor: colors.background }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Subscription</Text>
-        
-        <View style={{ backgroundColor: '#1F2937', borderRadius: 12, padding: 16, gap: 8 }}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Subscription</Text>
-          <Text style={{ color: '#9CA3AF' }}>Status: {pro ? 'Active' : 'Not Active'}</Text>
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
-            <TouchableOpacity onPress={onSubscribe} style={{ backgroundColor: '#3B82F6', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 }}>
-              <Text style={{ color: '#fff', fontWeight: '600' }}>
-                {price ? `Subscribe (${price} / mo)` : 'Subscribe (3-day trial)'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onRestore} style={{ backgroundColor: '#374151', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 }}>
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Restore Purchases</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       </View>
 

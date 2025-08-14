@@ -9,8 +9,6 @@ import { loadThemeColors } from '@/utils/theme';
 interface ExportButtonsProps {
   rows: any[];
   unitSystem: 'us' | 'metric';
-  disabled: boolean;
-  onDisabledPress: () => void;
   quarter: number;
   year: number;
 }
@@ -18,8 +16,6 @@ interface ExportButtonsProps {
 export default function ExportButtons({
   rows,
   unitSystem,
-  disabled,
-  onDisabledPress,
   quarter,
   year,
 }: ExportButtonsProps) {
@@ -30,11 +26,6 @@ export default function ExportButtons({
   }, []);
 
   const exportCSV = async () => {
-    if (disabled) {
-      onDisabledPress();
-      return;
-    }
-
     try {
       const headers = 'Quarter,Year,State,Miles,Gallons Purchased,Fleet MPG,Taxable Gallons,Tax Rate,Tax Paid At Pump,Liability';
       const csvRows = rows.map(row => 
@@ -64,11 +55,6 @@ export default function ExportButtons({
   };
 
   const exportPDF = async () => {
-    if (disabled) {
-      onDisabledPress();
-      return;
-    }
-
     try {
       const totalMiles = rows.reduce((sum, row) => sum + row.miles, 0);
       const totalGallons = rows.reduce((sum, row) => sum + row.fuelPurchased, 0);
@@ -178,23 +164,23 @@ export default function ExportButtons({
   return (
     <View style={styles.container}>
       <TouchableOpacity
-        style={[styles.button, styles.csvButton, disabled && styles.disabledButton]}
+        style={[styles.button, styles.csvButton]}
         onPress={exportCSV}
         activeOpacity={0.8}
       >
-        <Download size={16} color={disabled ? colors.muted : colors.onPrimary} />
-        <Text style={[styles.buttonText, disabled && styles.disabledText]}>
+        <Download size={16} color={colors.onPrimary} />
+        <Text style={styles.buttonText}>
           Export CSV
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.button, styles.pdfButton, disabled && styles.disabledButton]}
+        style={[styles.button, styles.pdfButton]}
         onPress={exportPDF}
         activeOpacity={0.8}
       >
-        <FileText size={16} color={disabled ? colors.muted : colors.onDanger} />
-        <Text style={[styles.buttonText, disabled && styles.disabledText]}>
+        <FileText size={16} color={colors.onDanger} />
+        <Text style={styles.buttonText}>
           Export PDF
         </Text>
       </TouchableOpacity>
@@ -224,16 +210,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   pdfButton: {
     backgroundColor: colors.danger,
   },
-  disabledButton: {
-    backgroundColor: colors.surface,
-    opacity: 0.6,
-  },
   buttonText: {
     color: colors.onPrimary,
     fontSize: 14,
     fontWeight: '500',
-  },
-  disabledText: {
-    color: colors.muted,
   },
 });

@@ -5,8 +5,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { getQuarterTrips, getQuarterFuelPurchases, getTaxRatesSnapshot } from '@/utils/database';
 import { computeIFTA, bucketMilesByState } from '@/utils/ifta';
-import { canExport, daysLeft, ensureTrialStart } from '@/utils/trial';
-import { getProStatus } from '@/utils/iap';
 import { formatDistance, formatVolume, formatEfficiency, miToKm, galToL, mpgToKmPerL } from '@/utils/units';
 import ExportButtons from '@/components/ExportButtons';
 import { getUnit } from '@/utils/prefs';
@@ -24,8 +22,6 @@ export default function QuarterScreen() {
   const [selectedQuarter, setSelectedQuarter] = useState(1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [unitSystem, setUnitSystem] = useState<'us' | 'metric'>('us');
-  const [canExportData, setCanExportData] = useState(false);
-  const [trialDaysLeft, setTrialDaysLeft] = useState(0);
   const [loading, setLoading] = useState(false);
   const [totals, setTotals] = useState<any>(null);
   const [colors, setColors] = useState<any>(null);
@@ -35,7 +31,6 @@ export default function QuarterScreen() {
     const now = new Date();
     const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
     setSelectedQuarter(currentQuarter);
-    initializeApp();
   }, []);
 
   // Reload when screen gains focus
@@ -59,18 +54,6 @@ export default function QuarterScreen() {
       console.error('Error loading preferences:', error);
       await generateReport(selectedQuarter, selectedYear, unitSystem);
     }
-  };
-
-  const initializeApp = async () => {
-    await ensureTrialStart();
-    const pro = await getProStatus();
-    const allowed = pro || (await canExport()); // trial fallback
-    const canExportStatus = allowed;
-    const trialDays = await daysLeft();
-    
-    setCanExportData(canExportStatus);
-    setTrialDaysLeft(trialDays);
-    loadPreferencesAndGenerateReport();
   };
 
   const generateReport = async (quarter: number, year: number, unit?: 'us' | 'metric') => {
@@ -163,25 +146,6 @@ export default function QuarterScreen() {
       Alert.alert('Error', 'Failed to generate quarterly report');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDisabledExport = () => {
-    if (trialDaysLeft > 0) {
-      Alert.alert(
-        'Trial Active',
-        `You have ${trialDaysLeft} days remaining in your free trial.`,
-        [{ text: 'OK' }]
-      );
-    } else {
-      Alert.alert(
-        'Export Unavailable',
-        'Export is available during 14-day trial or with a subscription.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'OK' }
-        ]
-      );
     }
   };
 
@@ -318,8 +282,6 @@ export default function QuarterScreen() {
               <ExportButtons
                 rows={quarterData.stateBreakdown}
                 unitSystem={unitSystem}
-                disabled={!canExportData}
-                onDisabledPress={handleDisabledExport}
                 quarter={selectedQuarter}
                 year={selectedYear}
               />
