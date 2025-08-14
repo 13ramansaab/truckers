@@ -33,6 +33,11 @@ export async function canUseApp(): Promise<boolean> {
   return (await isTrialActive()) || (await getProStatus());
 }
 
+// Alias for compatibility
+export async function startDeviceTrial() { 
+  return ensureTrialStart(); 
+}
+
 // Aliases for old callers
 export { canUseApp as hasActiveSubscription };
 export { canUseApp as canExport };
