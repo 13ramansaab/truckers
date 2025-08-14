@@ -10,12 +10,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { X, Crown, Check, Zap } from 'lucide-react-native';
-import {
-  getAvailableProducts,
-  purchaseSubscription,
-  SUBSCRIPTION_PRICE,
-  getSubscriptionState,
-} from '@/utils/iap';
 import { loadThemeColors } from '@/utils/theme';
 
 interface SubscriptionModalProps {
@@ -31,7 +25,6 @@ export default function SubscriptionModal({
 }: SubscriptionModalProps) {
   const [loading, setLoading] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
-  const [products, setProducts] = useState<any[]>([]);
   const [colors, setColors] = useState<any>(null);
 
   useEffect(() => {
@@ -43,12 +36,8 @@ export default function SubscriptionModal({
   const loadData = async () => {
     setLoading(true);
     try {
-      const [themeColors, availableProducts] = await Promise.all([
-        loadThemeColors(),
-        getAvailableProducts(),
-      ]);
+      const themeColors = await loadThemeColors();
       setColors(themeColors);
-      setProducts(availableProducts);
     } catch (error) {
       console.error('Error loading subscription data:', error);
     } finally {
@@ -57,31 +46,10 @@ export default function SubscriptionModal({
   };
 
   const handlePurchase = async () => {
-    if (products.length === 0) {
-      Alert.alert('Error', 'No subscription products available');
-      return;
-    }
-
     setPurchasing(true);
     try {
-      const success = await purchaseSubscription(products[0].identifier);
-      if (success) {
-        Alert.alert(
-          'Success!',
-          'Your subscription is now active with a 3-day free trial.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                onSubscribed?.();
-                onClose();
-              },
-            },
-          ]
-        );
-      } else {
-        Alert.alert('Error', 'Failed to complete purchase. Please try again.');
-      }
+      // Subscription logic moved to PaywallGate
+      Alert.alert('Info', 'Subscription handled by PaywallGate');
     } catch (error) {
       console.error('Purchase error:', error);
       Alert.alert('Error', 'An error occurred during purchase. Please try again.');
@@ -138,13 +106,13 @@ export default function SubscriptionModal({
 
           <View style={[styles.pricingCard, { backgroundColor: colors.surface }]}>
             <Text style={[styles.priceText, { color: colors.text }]}>
-              {SUBSCRIPTION_PRICE}
+              $9.99
             </Text>
             <Text style={[styles.periodText, { color: colors.muted }]}>
               per month
             </Text>
             <Text style={[styles.trialInfo, { color: colors.muted }]}>
-              3-day free trial, then {SUBSCRIPTION_PRICE}/month
+              3-day free trial, then $9.99/month
             </Text>
           </View>
 
