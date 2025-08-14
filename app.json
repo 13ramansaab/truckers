@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "ios": {
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "We use your location to track trips and calculate mileage.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs background location access to continuously track your routes for accurate mileage.",
+        "UIBackgroundModes": [
+          "location"
+        ]
+      }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location even in the background.",
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location while using the app."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "78eb6f79-b331-4384-94b2-2ed1e3fdd302"
+      }
+    }
+  }
+}
