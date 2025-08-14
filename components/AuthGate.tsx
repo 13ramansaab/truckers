@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { getSession, onAuthChange, signUpWithPassword, signInWithPassword, signOut } from '@/utils/auth';
 import { logInToPurchases, logOutFromPurchases } from '@/utils/iap';
+import { getProfile, upsertProfile } from '@/utils/profile';
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -28,6 +29,8 @@ export default function AuthGate({ children }: AuthGateProps) {
       if (session) {
         setEmail('');
         setPassword('');
+        // Ensure user has a profile row
+        ensureUserProfile();
         // Link RevenueCat to user
         try {
           logInToPurchases(session.user.id);
@@ -39,6 +42,18 @@ export default function AuthGate({ children }: AuthGateProps) {
 
     return unsubscribe;
   }, []);
+
+  const ensureUserProfile = async () => {
+    try {
+      const profile = await getProfile();
+      if (!profile) {
+        // Create empty profile row for new user
+        await upsertProfile({});
+      }
+    } catch (error) {
+      console.warn('Failed to ensure user profile:', error);
+    }
+  };
 
   const handleCreateAccount = async () => {
     if (!email.trim() || !password.trim()) {
