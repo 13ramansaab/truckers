@@ -1,4 +1,4 @@
-package com.anonymous.boltexponativewind
+package com.ifta.calculator
 
 import android.app.Application
 import android.content.res.Configuration

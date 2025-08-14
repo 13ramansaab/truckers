@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>myapp</string>
-          <string>com.anonymous.boltexponativewind</string>
+          <string>com.ifta.calculator</string>
         </array>
       </dict>
     </array>
