@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { Crown, RefreshCw } from 'lucide-react-native';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ensureTrialStart, isTrialActive, daysLeft } from '@/utils/trial';
-import { getProStatus, purchaseFirstAvailable, restore, getPackages } from '@/utils/iap';
+import { initIAP, getProStatus, getPackages, purchaseFirstAvailable, restore } from '@/utils/iap';
+import OnboardingCarousel from './OnboardingCarousel';
 
 const IS_EXPO_GO = Constants?.appOwnership === 'expo';
+const IS_NATIVE = Platform.OS === 'ios' || Platform.OS === 'android';
 
 interface PaywallGateProps {
   children: React.ReactNode;
@@ -14,29 +17,55 @@ interface PaywallGateProps {
 
 export default function PaywallGate({ children }: PaywallGateProps) {
   const [loading, setLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [canAccess, setCanAccess] = useState(false);
   const [trialDays, setTrialDays] = useState(0);
+  const [trialActive, setTrialActive] = useState(false);
+  const [pro, setPro] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [price, setPrice] = useState<string | null>(null);
 
   useEffect(() => {
-    checkAccess();
+    checkOnboardingAndAccess();
   }, []);
 
-  const checkAccess = async () => {
+  const checkOnboardingAndAccess = async () => {
     setLoading(true);
     try {
+      // Check onboarding first
+      const onboardingSeen = await AsyncStorage.getItem('onboarding.seen');
+      if (onboardingSeen !== '1') {
+        setShowOnboarding(true);
+        setLoading(false);
+        return;
+      }
+
+      await checkAccess();
+    } catch (error) {
+      console.error('Error checking onboarding and access:', error);
+      setCanAccess(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkAccess = async () => {
+    try {
+      await initIAP();
       await ensureTrialStart();
-      const [pro, trial, days, packages] = await Promise.all([
+      
+      const [proStatus, trial, days, packages] = await Promise.all([
         getProStatus(),
         isTrialActive(),
         daysLeft(),
         getPackages(),
       ]);
       
-      setCanAccess(pro || trial);
+      setPro(proStatus);
+      setTrialActive(trial);
       setTrialDays(days);
+      setCanAccess(proStatus || trial);
       
       // Get price if available
       if (packages.length > 0 && packages[0].product?.priceString) {
@@ -45,29 +74,37 @@ export default function PaywallGate({ children }: PaywallGateProps) {
     } catch (error) {
       console.error('Error checking access:', error);
       setCanAccess(false);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleSubscribe = async () => {
-    if (IS_EXPO_GO) return;
-    
+  const handleOnboardingFinish = async () => {
+    setShowOnboarding(false);
+    await checkAccess();
+  };
+
+  const handleStartTrial = async () => {
     setPurchasing(true);
     try {
-      const success = await purchaseFirstAvailable();
-      if (success) {
+      if (IS_NATIVE && !IS_EXPO_GO) {
+        // Native app: use RevenueCat purchase
+        const success = await purchaseFirstAvailable();
+        if (success) {
+          await checkAccess();
+        }
+      } else {
+        // Expo Go/Web: use device trial
+        await ensureTrialStart();
         await checkAccess();
       }
     } catch (error) {
-      console.error('Purchase error:', error);
+      console.error('Start trial error:', error);
     } finally {
       setPurchasing(false);
     }
   };
 
   const handleRestore = async () => {
-    if (IS_EXPO_GO) return;
+    if (IS_EXPO_GO || Platform.OS === 'web') return;
     
     setRestoring(true);
     try {
@@ -82,6 +119,14 @@ export default function PaywallGate({ children }: PaywallGateProps) {
     }
   };
 
+  const openTerms = () => {
+    Linking.openURL('https://example.com/terms');
+  };
+
+  const openPrivacy = () => {
+    Linking.openURL('https://example.com/privacy');
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -89,6 +134,10 @@ export default function PaywallGate({ children }: PaywallGateProps) {
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
+  }
+
+  if (showOnboarding) {
+    return <OnboardingCarousel onFinish={handleOnboardingFinish} />;
   }
 
   if (canAccess) {
@@ -102,40 +151,39 @@ export default function PaywallGate({ children }: PaywallGateProps) {
           <Crown size={48} color="#3B82F6" />
         </View>
         
-        <Text style={styles.title}>Trucker Fuel Tax</Text>
-        <Text style={styles.subtitle}>
-          Professional IFTA tracking and reporting for owner-operators
-        </Text>
+        <Text style={styles.title}>Start your 3-day free trial</Text>
+        
+        {price && (
+          <Text style={styles.subtitle}>
+            then {price}/month, auto-renews, cancel anytime
+          </Text>
+        )}
 
-        {trialDays > 0 && (
+        {trialActive && trialDays > 0 && (
           <View style={styles.trialInfo}>
             <Text style={styles.trialText}>
-              Trial: {trialDays} day{trialDays !== 1 ? 's' : ''} remaining
+              Trial: {trialDays} day{trialDays !== 1 ? 's' : ''} left
             </Text>
           </View>
         )}
 
         <View style={styles.buttonContainer}>
-          {!IS_EXPO_GO && (
-            <TouchableOpacity
-              style={[styles.subscribeButton, purchasing && styles.buttonDisabled]}
-              onPress={handleSubscribe}
-              disabled={purchasing}
-            >
-              {purchasing ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Crown size={20} color="#FFFFFF" />
-                  <Text style={styles.subscribeButtonText}>
-                    {price ? `Subscribe ${price}/mo` : 'Subscribe'}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.startTrialButton, purchasing && styles.buttonDisabled]}
+            onPress={handleStartTrial}
+            disabled={purchasing}
+          >
+            {purchasing ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Crown size={20} color="#FFFFFF" />
+                <Text style={styles.startTrialButtonText}>Start free trial</Text>
+              </>
+            )}
+          </TouchableOpacity>
 
-          {!IS_EXPO_GO && (
+          {IS_NATIVE && !IS_EXPO_GO && (
             <TouchableOpacity
               style={[styles.restoreButton, restoring && styles.buttonDisabled]}
               onPress={handleRestore}
@@ -146,21 +194,30 @@ export default function PaywallGate({ children }: PaywallGateProps) {
               ) : (
                 <>
                   <RefreshCw size={20} color="#3B82F6" />
-                  <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+                  <Text style={styles.restoreButtonText}>Restore purchases</Text>
                 </>
               )}
             </TouchableOpacity>
           )}
         </View>
 
-        <Text style={styles.trialNote}>
-          3-day free trial available on first purchase
-        </Text>
+        <View style={styles.legalContainer}>
+          <Text style={styles.legalText}>
+            By continuing you agree to our{' '}
+            <Text style={styles.legalLink} onPress={openTerms}>
+              Terms
+            </Text>
+            {' '}and{' '}
+            <Text style={styles.legalLink} onPress={openPrivacy}>
+              Privacy Policy
+            </Text>
+          </Text>
+        </View>
 
         {IS_EXPO_GO && (
           <View style={styles.expoGoNotice}>
             <Text style={styles.expoGoText}>
-              Purchases disabled in Expo Go. Install a dev build/TestFlight to subscribe.
+              Running in Expo Go - using device trial instead of subscription
             </Text>
           </View>
         )}
@@ -233,7 +290,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 24,
   },
-  subscribeButton: {
+  startTrialButton: {
     backgroundColor: '#3B82F6',
     flexDirection: 'row',
     alignItems: 'center',
@@ -242,7 +299,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
   },
-  subscribeButtonText: {
+  startTrialButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
@@ -266,11 +323,18 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6,
   },
-  trialNote: {
+  legalContainer: {
+    marginBottom: 16,
+  },
+  legalText: {
     color: '#6B7280',
     fontSize: 12,
     textAlign: 'center',
-    marginBottom: 16,
+    lineHeight: 18,
+  },
+  legalLink: {
+    color: '#3B82F6',
+    textDecorationLine: 'underline',
   },
   expoGoNotice: {
     backgroundColor: '#FEF3C7',
