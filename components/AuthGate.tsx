@@ -88,6 +88,14 @@ export default function AuthGate({ children }: AuthGateProps) {
     }
   };
 
+  const handleOAuthSignIn = async (provider: 'google' | 'facebook') => {
+    try {
+      await signInWithOAuth(provider);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to sign in with ' + provider);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
