@@ -2,9 +2,7 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox, AppState } from 'react-native';
-import { LogBox, AppState } from 'react-native';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { supabase } from '@/utils/supabase';
 import { supabase } from '@/utils/supabase';
 
 if (__DEV__) {
