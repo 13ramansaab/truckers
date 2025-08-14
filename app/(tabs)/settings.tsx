@@ -10,6 +10,7 @@ import { loadThemeColors } from '@/utils/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
 import { signOut } from '@/utils/auth';
+import { getProfile, upsertProfile, type Profile } from '@/utils/profile';
 
 export default function SettingsScreen() {
   const [theme, setThemeState] = useState<'system' | 'light' | 'dark'>('system');
@@ -18,6 +19,8 @@ export default function SettingsScreen() {
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [colors, setColors] = useState<any>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [updatingProfile, setUpdatingProfile] = useState(false);
 
   // Load settings when screen focuses
   useFocusEffect(
@@ -43,6 +46,15 @@ export default function SettingsScreen() {
       } catch (error) {
         console.error('Error getting user:', error);
         setUserEmail(null);
+      }
+      
+      // Get user profile
+      try {
+        const userProfile = await getProfile();
+        setProfile(userProfile);
+      } catch (error) {
+        console.error('Error getting profile:', error);
+        setProfile(null);
       }
       
       // Load theme colors after setting theme state
