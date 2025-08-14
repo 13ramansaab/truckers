@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { getSession, onAuthChange, sendOtp, verifyOtp, signOut, signInWithOAuth } from '@/utils/auth';
+import { getSession, onAuthChange, signUpWithPassword, signInWithPassword, signOut } from '@/utils/auth';
 import { logInToPurchases, logOutFromPurchases } from '@/utils/iap';
 
 interface AuthGateProps {
@@ -11,10 +11,9 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [step, setStep] = useState<'email' | 'code'>('email');
-  const [sending, setSending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  const [password, setPassword] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   useEffect(() => {
     // Check initial session
@@ -27,9 +26,8 @@ export default function AuthGate({ children }: AuthGateProps) {
     const unsubscribe = onAuthChange((session) => {
       setSession(session);
       if (session) {
-        setStep('email');
         setEmail('');
-        setCode('');
+        setPassword('');
         // Link RevenueCat to user
         try {
           logInToPurchases(session.user.id);
@@ -42,40 +40,36 @@ export default function AuthGate({ children }: AuthGateProps) {
     return unsubscribe;
   }, []);
 
-  const handleSendCode = async () => {
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email');
+  const handleCreateAccount = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Error', 'Please enter both email and password');
       return;
     }
 
-    setSending(true);
+    setIsCreating(true);
     try {
-      await sendOtp(email);
-      setStep('code');
-      Alert.alert('Success', 'Check your email for the verification code');
+      await signUpWithPassword(email, password);
+      Alert.alert('Success', 'Account created successfully');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send code');
+      Alert.alert('Error', error.message || 'Failed to create account');
     } finally {
-      setSending(false);
+      setIsCreating(false);
     }
   };
 
-  const handleVerifyCode = async () => {
-    if (!code.trim()) {
-      Alert.alert('Error', 'Please enter the verification code');
+  const handleSignIn = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Error', 'Please enter both email and password');
       return;
     }
 
-    setVerifying(true);
+    setIsSigningIn(true);
     try {
-      const success = await verifyOtp(email, code);
-      if (!success) {
-        Alert.alert('Error', 'Invalid verification code');
-      }
+      await signInWithPassword(email, password);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to verify code');
+      Alert.alert('Error', error.message || 'Failed to sign in');
     } finally {
-      setVerifying(false);
+      setIsSigningIn(false);
     }
   };
 
@@ -85,14 +79,6 @@ export default function AuthGate({ children }: AuthGateProps) {
       await signOut();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to sign out');
-    }
-  };
-
-  const handleOAuthSignIn = async (provider: 'google' | 'facebook') => {
-    try {
-      await signInWithOAuth(provider);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to sign in with ' + provider);
     }
   };
 
@@ -110,94 +96,44 @@ export default function AuthGate({ children }: AuthGateProps) {
         <View style={styles.card}>
           <Text style={styles.title}>Sign In</Text>
           
-          {step === 'email' ? (
-            <>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#9CA3AF"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-              <TouchableOpacity
-                style={[styles.button, sending && styles.buttonDisabled]}
-                onPress={handleSendCode}
-                disabled={sending}
-              >
-                <Text style={styles.buttonText}>
-                  {sending ? 'Sending...' : 'Send Code'}
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.oauthButton}
-                onPress={() => handleOAuthSignIn('google')}
-              >
-                <Text style={styles.oauthButtonText}>Continue with Google</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.oauthButton}
-                onPress={() => handleOAuthSignIn('facebook')}
-              >
-                <Text style={styles.oauthButtonText}>Continue with Facebook</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.oauthButton}
-                onPress={() => handleOAuthSignIn('google')}
-              >
-                <Text style={styles.oauthButtonText}>Continue with Google</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.oauthButton}
-                onPress={() => handleOAuthSignIn('facebook')}
-              >
-                <Text style={styles.oauthButtonText}>Continue with Facebook</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={styles.subtitle}>
-                Enter the 6-digit code we emailed you
-              </Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter verification code"
-                placeholderTextColor="#9CA3AF"
-                value={code}
-                onChangeText={setCode}
-                keyboardType="number-pad"
-              />
-              <TouchableOpacity
-                style={[styles.button, verifying && styles.buttonDisabled]}
-                onPress={handleVerifyCode}
-                disabled={verifying}
-              >
-                <Text style={styles.buttonText}>
-                  {verifying ? 'Verifying...' : 'Verify'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.resendButton, sending && styles.buttonDisabled]}
-                onPress={handleSendCode}
-                disabled={sending}
-              >
-                <Text style={styles.resendButtonText}>
-                  {sending ? 'Sending...' : 'Resend code'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => setStep('email')}
-              >
-                <Text style={styles.backButtonText}>Back</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your email"
+            placeholderTextColor="#9CA3AF"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your password"
+            placeholderTextColor="#9CA3AF"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+          
+          <TouchableOpacity
+            style={[styles.button, isCreating && styles.buttonDisabled]}
+            onPress={handleCreateAccount}
+            disabled={isCreating || isSigningIn}
+          >
+            <Text style={styles.buttonText}>
+              {isCreating ? 'Creating...' : 'Create Account'}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.button, styles.signInButton, isSigningIn && styles.buttonDisabled]}
+            onPress={handleSignIn}
+            disabled={isCreating || isSigningIn}
+          >
+            <Text style={styles.buttonText}>
+              {isSigningIn ? 'Signing in...' : 'Log In'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -205,11 +141,6 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   return (
     <View style={styles.authenticatedContainer}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.signOutButtonText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
       {children}
     </View>
   );
@@ -225,14 +156,6 @@ const styles = StyleSheet.create({
   },
   authenticatedContainer: {
     flex: 1,
-    backgroundColor: '#111827',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 10,
   },
   loadingText: {
     color: '#FFFFFF',
@@ -276,6 +199,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  signInButton: {
+    backgroundColor: '#10B981',
+  },
   buttonDisabled: {
     opacity: 0.6,
   },
@@ -283,32 +209,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  backButton: {
-    alignItems: 'center',
-  },
-  backButtonText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-  },
-  resendButton: {
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  resendButtonText: {
-    color: '#3B82F6',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  signOutButton: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  signOutButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '500',
   },
 });
