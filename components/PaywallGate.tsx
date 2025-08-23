@@ -82,9 +82,13 @@ export default function PaywallGate({ children }: PaywallGateProps) {
       });
       
       // Get packages for the paywall
-      const packages = await getPackages();
-      if (packages.length > 0 && packages[0].product?.priceString) {
-        setPrice(packages[0].product.priceString);
+      try {
+        const packages = await getPackages();
+        if (packages && packages.length > 0 && packages[0]?.product?.priceString) {
+          setPrice(packages[0].product.priceString);
+        }
+      } catch (packageError) {
+        console.warn('Failed to get packages:', packageError);
       }
     } catch (error) {
       console.error('Error checking access:', error);

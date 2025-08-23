@@ -21,7 +21,7 @@ export default function RootLayout() {
     // Initialize RevenueCat when app starts
     const initializeRevenueCat = async () => {
       try {
-        const { initIAP } = await import('../utils/iap');
+        const { initIAP } = await import('~/utils/iap');
         await initIAP();
       } catch (error) {
         console.warn('Failed to initialize RevenueCat:', error);
@@ -31,21 +31,26 @@ export default function RootLayout() {
     // Delay initialization slightly to ensure modules are loaded
     const timer = setTimeout(initializeRevenueCat, 100);
 
-    const sub = AppState.addEventListener('change', s => {
-      if (s === 'active' && supabase?.auth?.startAutoRefresh) {
-        try {
-          supabase.auth.startAutoRefresh();
-        } catch (error) {
-          console.warn('Failed to start auth auto-refresh:', error);
+    let sub: any = null;
+    try {
+      sub = AppState.addEventListener('change', s => {
+        if (s === 'active' && supabase?.auth?.startAutoRefresh) {
+          try {
+            supabase.auth.startAutoRefresh();
+          } catch (error) {
+            console.warn('Failed to start auth auto-refresh:', error);
+          }
+        } else if (s !== 'active' && supabase?.auth?.stopAutoRefresh) {
+          try {
+            supabase.auth.stopAutoRefresh();
+          } catch (error) {
+            console.warn('Failed to stop auth auto-refresh:', error);
+          }
         }
-      } else if (s !== 'active' && supabase?.auth?.stopAutoRefresh) {
-        try {
-          supabase.auth.stopAutoRefresh();
-        } catch (error) {
-          console.warn('Failed to stop auth auto-refresh:', error);
-        }
-      }
-    });
+      });
+    } catch (error) {
+      console.warn('Failed to add AppState listener:', error);
+    }
     
     // Start auto-refresh if available
     if (supabase?.auth?.startAutoRefresh) {
@@ -65,7 +70,13 @@ export default function RootLayout() {
           console.warn('Failed to stop auth auto-refresh:', error);
         }
       }
-      sub.remove(); 
+      if (sub?.remove) {
+        try {
+          sub.remove(); 
+        } catch (error) {
+          console.warn('Failed to remove AppState listener:', error);
+        }
+      }
     };
   }, []);
 

@@ -22,6 +22,10 @@ export default function AuthGate({ children }: AuthGateProps) {
     getSession().then(session => {
       setSession(session);
       setLoading(false);
+    }).catch(error => {
+      console.warn('Failed to get session:', error);
+      setSession(null);
+      setLoading(false);
     });
 
     // Listen for auth changes
