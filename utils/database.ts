@@ -1,7 +1,7 @@
 // utils/database.ts
 import { supabase } from './supabase';
-import { Trip, FuelPurchase, LocationPoint } from '@/types';
-import { getCurrentLocation, reverseGeocode, getStateFromCoords } from '@/utils/location';
+import { Trip, FuelPurchase, LocationPoint } from '~/types';
+import { getCurrentLocation, reverseGeocode, getStateFromCoords } from '~/utils/location';
 
 // Initialize database - check connection
 export const initializeDatabase = async () => {
@@ -240,7 +240,7 @@ export const getAllFuelEntries = async (): Promise<FuelPurchase[]> => {
       receiptUrl: purchase.receipt_url ?? null,
       // @ts-ignore
       receiptPath: purchase.receipt_path ?? null,
-      notes: null,
+      notes: undefined,
     }));
   } catch (error) {
     console.error('Error fetching fuel purchases:', error);
@@ -344,7 +344,7 @@ export const getQuarterFuelPurchases = async (year: number, quarter: number): Pr
       receiptUrl: purchase.receipt_url ?? null,
       // @ts-ignore
       receiptPath: purchase.receipt_path ?? null,
-      notes: null,
+      notes: undefined,
     }));
   } catch (error) {
     console.error('Error fetching quarter fuel purchases:', error);

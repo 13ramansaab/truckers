@@ -1,4 +1,4 @@
-import { LocationPoint } from '@/types';
+import { LocationPoint } from '~/types';
 
 /**
  * Calculate distance between two points using Haversine formula

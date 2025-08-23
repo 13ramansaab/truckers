@@ -1,0 +1,19 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:8081",
+  "backendAuthType": "basic token",
+  "backendUsername": "raman@gmail.com",
+  "backendPassword": "Munday@13",
+  "executionArgs": {
+    "projectName": "IFTA-Mileage-Fuel-Log",
+    "projectPath": "D:\\PROJECTS\\Trucker IFTA\\BUILDS FOR NEW APP\\IOS",
+    "testIds": [],
+    "additionalInstruction": "Please test the IFTA Mileage & Fuel Log app thoroughly, focusing on the core features: user authentication, trip tracking, fuel logging, IFTA reporting, subscription management, and settings. Test both the frontend UI components and backend functionality including database operations, GPS services, and RevenueCat integration.",
+    "envs": {
+      "API_KEY": "sk-user-_5Hky2Kurq1-tB8HWJdnFtUj7749MJCgoLtIBnRGDDwBgyRjDa_8edXjWUNzGC3Ri_eoukEBQzNrBDJacFWLGSxBXhQUwg0kQFaa5gdFH-63HOhwaLX3qLhORh4GR7qp3BM"
+    }
+  },
+  "proxy": "http://578bbf53-d01a-4dac-9138-72a0d177156a:r8ztrC1iAT9a7E88DIWbj0deIdCzMZD4@tun.testsprite.com:8080"
+}

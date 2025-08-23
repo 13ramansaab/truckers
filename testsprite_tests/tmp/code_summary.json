@@ -1,0 +1,310 @@
+{
+  "tech_stack": [
+    "TypeScript",
+    "React Native",
+    "Expo",
+    "SQLite",
+    "Supabase",
+    "RevenueCat",
+    "Expo Router"
+  ],
+  "features": [
+    {
+      "name": "User Authentication",
+      "description": "Email/password authentication system with Supabase backend",
+      "files": [
+        "components/AuthGate.tsx",
+        "utils/auth.ts",
+        "utils/supabase.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "User Authentication API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/auth/signup": {
+            "post": {
+              "summary": "Create new user account",
+              "requestBody": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "email": {"type": "string"},
+                        "password": {"type": "string"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/auth/signin": {
+            "post": {
+              "summary": "Sign in existing user",
+              "requestBody": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "email": {"type": "string"},
+                        "password": {"type": "string"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Trip Tracking System",
+      "description": "GPS-based trip tracking with start/stop functionality and real-time location monitoring",
+      "files": [
+        "components/TripTracker.tsx",
+        "utils/location.ts",
+        "utils/database.ts",
+        "types/index.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Trip Tracking API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/trip/start": {
+            "post": {
+              "summary": "Start a new trip with GPS tracking",
+              "responses": {
+                "200": {
+                  "description": "Trip started successfully"
+                }
+              }
+            }
+          },
+          "/trip/stop": {
+            "post": {
+              "summary": "Stop current trip and calculate mileage",
+              "responses": {
+                "200": {
+                  "description": "Trip stopped successfully"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Fuel Logging System",
+      "description": "Fuel purchase logging with receipt photos, location data, and cost tracking",
+      "files": [
+        "app/(tabs)/fuel.tsx",
+        "utils/database.ts",
+        "components/FuelEntryForm.tsx"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Fuel Logging API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/fuel/entry": {
+            "post": {
+              "summary": "Create new fuel entry",
+              "requestBody": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "gallons": {"type": "number"},
+                        "totalCost": {"type": "number"},
+                        "location": {"type": "object"},
+                        "date": {"type": "string"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "IFTA Reporting System",
+      "description": "Quarterly IFTA reports with state-by-state breakdown, tax calculations, and export functionality",
+      "files": [
+        "app/(tabs)/quarter.tsx",
+        "components/ExportButtons.tsx",
+        "utils/database.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "IFTA Reporting API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/reports/quarterly": {
+            "get": {
+              "summary": "Generate quarterly IFTA report",
+              "parameters": [
+                {
+                  "name": "quarter",
+                  "in": "query",
+                  "schema": {"type": "integer"}
+                },
+                {
+                  "name": "year",
+                  "in": "query",
+                  "schema": {"type": "integer"}
+                }
+              ]
+            }
+          },
+          "/reports/export/csv": {
+            "get": {
+              "summary": "Export report as CSV"
+            }
+          },
+          "/reports/export/pdf": {
+            "get": {
+              "summary": "Export report as PDF"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Subscription Management",
+      "description": "RevenueCat integration for subscription handling with free trial and monthly plans",
+      "files": [
+        "components/PaywallGate.tsx",
+        "utils/iap.ts",
+        "revenuecat-config.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Subscription API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/subscription/status": {
+            "get": {
+              "summary": "Get current subscription status"
+            }
+          },
+          "/subscription/purchase": {
+            "post": {
+              "summary": "Purchase subscription"
+            }
+          },
+          "/subscription/restore": {
+            "post": {
+              "summary": "Restore previous purchases"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Settings & Preferences",
+      "description": "User preferences including theme selection, unit system, GPS accuracy, and account management",
+      "files": [
+        "app/(tabs)/settings.tsx",
+        "utils/prefs.ts",
+        "utils/theme.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Settings API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/settings/theme": {
+            "put": {
+              "summary": "Update app theme preference"
+            }
+          },
+          "/settings/units": {
+            "put": {
+              "summary": "Update unit system preference"
+            }
+          },
+          "/settings/gps-accuracy": {
+            "put": {
+              "summary": "Update GPS accuracy preference"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Onboarding System",
+      "description": "User onboarding flow with feature explanation and trial activation",
+      "files": [
+        "components/OnboardingCarousel.tsx",
+        "components/PaywallGate.tsx"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Onboarding API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/onboarding/status": {
+            "get": {
+              "summary": "Get onboarding completion status"
+            }
+          },
+          "/onboarding/complete": {
+            "post": {
+              "summary": "Mark onboarding as complete"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Dashboard & Analytics",
+      "description": "Home screen with current quarter statistics, trip status, and quick actions",
+      "files": [
+        "app/(tabs)/index.tsx",
+        "utils/database.ts",
+        "utils/theme.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Dashboard API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/dashboard/stats": {
+            "get": {
+              "summary": "Get current quarter statistics"
+            }
+          },
+          "/dashboard/trip-status": {
+            "get": {
+              "summary": "Get current trip status"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

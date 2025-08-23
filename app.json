@@ -1,27 +1,75 @@
 {
   "expo": {
+    "name": "IFTA Tracker",
+    "slug": "ifta-tracker",
+    "version": "3.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#111827"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ifta.calculator",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "We use your location to track trips and calculate mileage.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs background location access to continuously track your routes for accurate mileage.",
-        "UIBackgroundModes": [
-          "location"
-        ]
+        "NSLocationWhenInUseUsageDescription": "This app needs location access to track your trips and calculate mileage for IFTA reporting.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs location access to track your trips and calculate mileage for IFTA reporting.",
+        "NSCameraUsageDescription": "This app needs camera access to scan fuel receipts.",
+        "NSPhotoLibraryUsageDescription": "This app needs photo library access to save fuel receipts.",
+        "NSMicrophoneUsageDescription": "This app needs microphone access for voice notes."
       }
     },
-    "plugins": [
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location even in the background.",
-          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location while using the app."
-        }
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/android-chrome-512x512.png",
+        "backgroundColor": "#111827"
+      },
+      "package": "com.ifta.calculator",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET"
       ]
+    },
+    "web": {
+      "favicon": "./assets/images/favicon-32x32.png",
+      "appleTouchIcon": "./assets/images/apple-touch-icon.png",
+      "icon": "./assets/images/android-chrome-192x192.png"
+    },
+    "plugins": [
+      "expo-location",
+      "expo-camera",
+      "expo-file-system",
+      "expo-sqlite",
+      "expo-router"
     ],
     "extra": {
+      "revenueCat": {
+        "ios": {
+          "apiKey": "appl_jdGcqdPCjFHqUcJKOJOzdWrYreI",
+          "offeringId": "ofrngb819af58c8",
+          "monthlyProductId": "$rc_monthly"
+        }
+      },
       "eas": {
-        "projectId": "78eb6f79-b331-4384-94b2-2ed1e3fdd302"
+        "projectId": "54afd5f9-b098-4aef-a144-75790e61124e"
       }
-    }
+    },
+    "owner": "ramansaab"
   }
 }

@@ -1,0 +1,124 @@
+{
+  "cli": { 
+    "version": ">= 7.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "android": { 
+        "buildType": "apk" 
+      },
+      "env": {
+        "NPM_CONFIG_FETCH_RETRIES": "5",
+        "NPM_CONFIG_FETCH_RETRY_MINTIMEOUT": "20000",
+        "NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT": "120000",
+        "NPM_CONFIG_FETCH_TIMEOUT": "600000",
+        "NPM_CONFIG_PREFER_ONLINE": "true",
+        "NPM_CONFIG_REGISTRY": "https://registry.npmjs.org/"
+      }
+    },
+    "development": { 
+      "developmentClient": true, 
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "resourceClass": "medium"
+      }
+    },
+    "internal": { 
+      "distribution": "internal",
+      "developmentClient": true,
+      "ios": {
+        "resourceClass": "m-medium",
+        "buildConfiguration": "Debug"
+      },
+      "android": {
+        "resourceClass": "medium",
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "env": {
+          "EXPO_USE_LEGACY_PACKAGING": "true"
+        }
+      }
+    },
+    "production": { 
+      "distribution": "store",
+      "developmentClient": false,
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "resourceClass": "medium",
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease",
+        "env": {
+          "EXPO_USE_LEGACY_PACKAGING": "true",
+          "REACT_NATIVE_ARCHITECTURES": "arm64-v8a",
+          "NODE_ENV": "production",
+          "EAS_SKIP_AUTO_FINGERPRINT": "true"
+        }
+      }
+    },
+    "playstore": {
+      "distribution": "store",
+      "developmentClient": false,
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "resourceClass": "medium",
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease",
+        "env": {
+          "EXPO_USE_LEGACY_PACKAGING": "true",
+          "REACT_NATIVE_ARCHITECTURES": "arm64-v8a",
+          "NODE_ENV": "production",
+          "EAS_SKIP_AUTO_FINGERPRINT": "1"
+        }
+      }
+    },
+    "windows-compatible": {
+      "distribution": "internal",
+      "developmentClient": false,
+      "android": {
+        "resourceClass": "medium",
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "env": {
+          "EXPO_USE_LEGACY_PACKAGING": "true",
+          "REACT_NATIVE_ARCHITECTURES": "arm64-v8a"
+        }
+      }
+    },
+    "production-apk": {
+      "distribution": "internal",
+      "developmentClient": false,
+      "android": {
+        "resourceClass": "medium",
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "env": {
+          "EXPO_USE_LEGACY_PACKAGING": "true",
+          "REACT_NATIVE_ARCHITECTURES": "arm64-v8a",
+          "NODE_ENV": "production"
+        }
+      }
+    },
+    "bypass-native": {
+      "distribution": "internal",
+      "developmentClient": false,
+      "android": {
+        "resourceClass": "medium",
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "env": {
+          "EXPO_USE_LEGACY_PACKAGING": "true",
+          "REACT_NATIVE_ARCHITECTURES": "arm64-v8a"
+        }
+      }
+    }
+  },
+  "submit": { "production": {} }
+}

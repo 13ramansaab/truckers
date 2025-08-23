@@ -4,8 +4,9 @@ import { Crown, RefreshCw } from 'lucide-react-native';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ensureTrialStart, isTrialActive, daysLeft } from '@/utils/trial';
-import { initIAP, getProStatus, getPackages, purchaseFirstAvailable, restore } from '@/utils/iap';
+import { ensureTrialStart, isTrialActiveWithoutAutoStart, daysLeftWithoutAutoStart } from '~/utils/trial';
+import { initIAP, getProStatus, getPackages, purchaseFirstAvailable, purchaseProduct, restore } from '~/utils/iap';
+import { getMonthlyProductId } from '~/revenuecat-config';
 import OnboardingCarousel from './OnboardingCarousel';
 
 const IS_EXPO_GO = Constants?.appOwnership === 'expo';
@@ -53,21 +54,35 @@ export default function PaywallGate({ children }: PaywallGateProps) {
   const checkAccess = async () => {
     try {
       await initIAP();
-      await ensureTrialStart();
       
-      const [proStatus, trial, days, packages] = await Promise.all([
-        getProStatus(),
-        isTrialActive(),
-        daysLeft(),
-        getPackages(),
-      ]);
+      // Check if user already has pro access
+      const proStatus = await getProStatus();
+      if (proStatus) {
+        setPro(true);
+        setTrialActive(false);
+        setTrialDays(0);
+        setCanAccess(true);
+        return;
+      }
       
-      setPro(proStatus);
+      // Check if user already has an active trial (don't auto-start one)
+      const trial = await isTrialActiveWithoutAutoStart();
+      const days = await daysLeftWithoutAutoStart();
+      
+      setPro(false);
       setTrialActive(trial);
       setTrialDays(days);
-      setCanAccess(proStatus || trial);
+      setCanAccess(trial); // Only grant access if trial is already active
       
-      // Get price if available
+      console.log('PaywallGate: Access check results:', {
+        pro: proStatus,
+        trial,
+        days,
+        canAccess: trial
+      });
+      
+      // Get packages for the paywall
+      const packages = await getPackages();
       if (packages.length > 0 && packages[0].product?.priceString) {
         setPrice(packages[0].product.priceString);
       }
@@ -87,7 +102,17 @@ export default function PaywallGate({ children }: PaywallGateProps) {
     try {
       if (IS_NATIVE && !IS_EXPO_GO) {
         // Native app: use RevenueCat purchase
-        const success = await purchaseFirstAvailable();
+        let success = await purchaseFirstAvailable();
+        
+        // If package purchase fails, try direct product purchase
+        if (!success) {
+          console.log('Package purchase failed, trying direct product purchase...');
+          const monthlyProductId = getMonthlyProductId();
+          console.log('Attempting to purchase product:', monthlyProductId);
+          success = await purchaseProduct(monthlyProductId);
+          console.log('Direct product purchase result:', success);
+        }
+        
         if (success) {
           await checkAccess();
         }

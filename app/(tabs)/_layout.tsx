@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Chrome as Home, Route, Fuel, FileText, Settings } from 'lucide-react-native';
-import AuthGate from '@/components/AuthGate';
-import PaywallGate from '@/components/PaywallGate';
+import AuthGate from '~/components/AuthGate';
+import PaywallGate from '~/components/PaywallGate';
 
 export default function TabLayout() {
   return (

@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { X, Crown, Check, Zap } from 'lucide-react-native';
-import { loadThemeColors } from '@/utils/theme';
+import { loadThemeColors } from '~/utils/theme';
 
 interface SubscriptionModalProps {
   visible: boolean;

@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, Platform, Switch } from 'react-native';
 import { Camera, Save, MapPin, Image as ImageIcon } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { insertFuelPurchase } from '@/utils/database';
-import { uploadReceiptImage } from '@/utils/storage';
-import { FuelPurchase } from '@/types';
-import { getCurrentLocation, getStateFromCoords } from '@/utils/location';
+import { insertFuelPurchase } from '~/utils/database';
+import { uploadReceiptImage } from '~/utils/storage';
+import { FuelPurchase } from '~/types';
+import { getCurrentLocation, getStateFromCoords } from '~/utils/location';
 
 interface FuelEntryFormProps {
   onEntryAdded?: (entry: FuelPurchase) => void;
@@ -64,7 +64,7 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
         }
         
         // Try to get a more specific location
-        const { reverseGeocode } = await import('@/utils/location');
+        const { reverseGeocode } = await import('../utils/location');
         const address = await reverseGeocode(coords);
         if (address && address !== 'Unknown Location') {
           // Extract just the city/area part for location field
@@ -126,7 +126,7 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
         totalCost: gallonsNum * priceNum,
         taxIncludedAtPump,
         odometer: odometerNum,
-        receiptPhoto: finalReceiptUrl,
+        receiptPhoto: finalReceiptUrl || undefined,
         location,
         latitude: currentCoords?.latitude,
         longitude: currentCoords?.longitude,

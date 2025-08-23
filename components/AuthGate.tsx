@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { getSession, onAuthChange, signUpWithPassword, signInWithPassword, signOut } from '@/utils/auth';
-import { logInToPurchases, logOutFromPurchases } from '@/utils/iap';
-import { getProfile, upsertProfile } from '@/utils/profile';
+import { getSession, onAuthChange, signUpWithPassword, signInWithPassword, signOut } from '~/utils/auth';
+import { logInToPurchases, logOutFromPurchases } from '~/utils/iap';
+import { getProfile, upsertProfile } from '~/utils/profile';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -64,6 +65,15 @@ export default function AuthGate({ children }: AuthGateProps) {
     setIsCreating(true);
     try {
       await signUpWithPassword(email, password);
+      
+      // Reset onboarding state for new users so they see the onboarding flow
+      try {
+        await AsyncStorage.removeItem('onboarding.seen');
+        console.log('Reset onboarding state for new user');
+      } catch (storageError) {
+        console.warn('Could not reset onboarding state:', storageError);
+      }
+      
       Alert.alert('Success', 'Account created successfully');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to create account');
@@ -91,6 +101,15 @@ export default function AuthGate({ children }: AuthGateProps) {
   const handleSignOut = async () => {
     try {
       await logOutFromPurchases();
+      
+      // Reset onboarding state when signing out so it can be shown again
+      try {
+        await AsyncStorage.removeItem('onboarding.seen');
+        console.log('Reset onboarding state on sign out');
+      } catch (storageError) {
+        console.warn('Could not reset onboarding state:', storageError);
+      }
+      
       await signOut();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to sign out');

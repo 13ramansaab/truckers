@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Fuel, Calendar, MapPin, Trash2, DollarSign } from 'lucide-react-native';
-import FuelEntryForm from '@/components/FuelEntryForm';
-import { getAllFuelEntries, deleteFuelEntry as deleteFuelEntryFromDb } from '@/utils/database';
-import { loadThemeColors } from '@/utils/theme';
+import FuelEntryForm from '~/components/FuelEntryForm';
+import { getAllFuelEntries, deleteFuelEntry as deleteFuelEntryFromDb } from '~/utils/database';
+import { loadThemeColors } from '~/utils/theme';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 

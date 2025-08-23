@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "test user signup with valid email and password",
+    "description": "Verify that a new user can successfully create an account using the /auth/signup endpoint with valid email and password."
+  },
+  {
+    "id": "TC002",
+    "title": "test user signin with correct credentials",
+    "description": "Verify that an existing user can sign in successfully using the /auth/signin endpoint with correct email and password."
+  },
+  {
+    "id": "TC003",
+    "title": "test start trip api initiates gps tracking",
+    "description": "Verify that the /trip/start endpoint starts a new trip and initiates GPS tracking with correct response and status code."
+  },
+  {
+    "id": "TC004",
+    "title": "test stop trip api stops tracking and calculates mileage",
+    "description": "Verify that the /trip/stop endpoint stops the current trip, calculates the total mileage accurately, and returns a success response."
+  },
+  {
+    "id": "TC005",
+    "title": "test create new fuel entry with all required data",
+    "description": "Verify that the /fuel/entry endpoint accepts and stores a new fuel entry with gallons, total cost, location data, and date, returning a success response."
+  },
+  {
+    "id": "TC006",
+    "title": "test generate quarterly ifta report with valid quarter and year",
+    "description": "Verify that the /reports/quarterly endpoint generates a detailed quarterly IFTA report when provided with valid quarter and year parameters."
+  },
+  {
+    "id": "TC007",
+    "title": "test export ifta report as csv file",
+    "description": "Verify that the /reports/export/csv endpoint exports the generated IFTA report correctly in CSV format."
+  },
+  {
+    "id": "TC008",
+    "title": "test export ifta report as pdf file",
+    "description": "Verify that the /reports/export/pdf endpoint exports the generated IFTA report correctly in PDF format."
+  },
+  {
+    "id": "TC009",
+    "title": "test get current subscription status",
+    "description": "Verify that the /subscription/status endpoint returns the current subscription status accurately."
+  },
+  {
+    "id": "TC010",
+    "title": "test purchase subscription process",
+    "description": "Verify that the /subscription/purchase endpoint processes a subscription purchase correctly and updates the subscription status."
+  }
+]

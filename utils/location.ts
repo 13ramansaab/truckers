@@ -65,18 +65,50 @@ export const requestLocationPermissions = async (): Promise<boolean> => {
       return typeof window !== 'undefined' && 'geolocation' in navigator;
     }
 
+    // Check if location services are enabled
+    try {
+      const isEnabled = await Location.hasServicesEnabledAsync();
+      if (!isEnabled) {
+        console.warn('Location services are disabled on this device');
+        return false;
+      }
+    } catch (serviceError) {
+      console.warn('Could not check if location services are enabled:', serviceError);
+    }
+
+    // Check if permission is already granted
+    try {
+      const currentStatus = await Location.getForegroundPermissionsAsync();
+      if (currentStatus.status === 'granted') {
+        console.log('Location permission already granted');
+        return true;
+      }
+    } catch (statusError) {
+      console.warn('Could not check current permission status:', statusError);
+    }
+
     // Always ask foreground first
-    const fg = await Location.requestForegroundPermissionsAsync();
-    if (fg.status !== 'granted') {
-      console.warn('Foreground location permission not granted');
+    try {
+      const fg = await Location.requestForegroundPermissionsAsync();
+      if (fg.status !== 'granted') {
+        console.warn('Foreground location permission not granted');
+        return false;
+      }
+    } catch (fgError) {
+      console.error('Foreground permission request failed:', fgError);
       return false;
     }
 
     // Background permission ONLY if not Expo Go (requires Info.plist keys + dev/standalone build)
     if (!isExpoGo) {
-      const bg = await Location.requestBackgroundPermissionsAsync();
-      if (bg.status !== 'granted') {
-        console.warn('Background location permission not granted');
+      try {
+        const bg = await Location.requestBackgroundPermissionsAsync();
+        if (bg.status !== 'granted') {
+          console.warn('Background location permission not granted');
+        }
+      } catch (bgError) {
+        console.warn('Background permission request failed:', bgError);
+        // Don't fail the whole request for background permission
       }
     }
 
@@ -90,7 +122,7 @@ export const requestLocationPermissions = async (): Promise<boolean> => {
 // --------------------------------------------------
 // CURRENT LOCATION
 // --------------------------------------------------
-export const getCurrentLocation = async (): Promise<LocationCoords | null> => {
+export const getCurrentLocation = async (useHighAccuracy?: boolean): Promise<LocationCoords | null> => {
   try {
     if (Platform.OS === 'web') {
       if (typeof window === 'undefined' || !('geolocation' in navigator)) {
@@ -109,8 +141,9 @@ export const getCurrentLocation = async (): Promise<LocationCoords | null> => {
       });
     }
 
-    // Native
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    // Native - use high accuracy if specified, otherwise balanced
+    const accuracy = useHighAccuracy ? Location.Accuracy.BestForNavigation : Location.Accuracy.Balanced;
+    const loc = await Location.getCurrentPositionAsync({ accuracy });
     return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
   } catch (err) {
     console.error('Error getting current location:', err);

@@ -1,4 +1,4 @@
-import { Trip, FuelPurchase, QuarterSummary, StateBreakdown } from '@/types';
+import { Trip, FuelPurchase, QuarterSummary, StateBreakdown } from '~/types';
 import { getTaxRate } from './database';
 
 /**

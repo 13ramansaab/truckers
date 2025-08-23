@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { MapPin, Clock, Trash2 } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import TripTracker from '@/components/TripTracker';
-import { getAllTrips, deleteTripFromDb } from '@/utils/database';
-import { loadThemeColors } from '@/utils/theme';
+import TripTracker from '~/components/TripTracker';
+import { getAllTrips, deleteTripFromDb } from '~/utils/database';
+import { loadThemeColors } from '~/utils/theme';
 
 export default function TripScreen() {
   const [trips, setTrips] = useState<any[]>([]);

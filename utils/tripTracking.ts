@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import { LocationPoint, Trip, SamplingPolicy } from '@/types';
+import { LocationPoint, Trip, SamplingPolicy } from '~/types';
 import { calculateHaversineDistance, shouldSampleLocation, calculateMilesByState, calculateTotalDistance } from './geoCalculations';
 import { insertLocationPoint, updateTrip, getTripLocationPoints } from './database';
 import { getStateFromCoords } from './location';
@@ -65,7 +65,7 @@ export class TripTracker {
     }
 
     // Get all location points for this trip
-    const points = getTripLocationPoints(this.tripId);
+    const points = await getTripLocationPoints(this.tripId);
     
     if (points.length > 0) {
       // Calculate final statistics
@@ -139,17 +139,24 @@ export class TripTracker {
       };
 
       // Save location point to database
-      await insertLocationPoint(locationPoint, this.tripId);
+      await insertLocationPoint(this.tripId, {
+        lat: locationPoint.latitude,
+        lng: locationPoint.longitude,
+        state: locationPoint.state,
+        ts: new Date(locationPoint.timestamp),
+      });
 
       // Update sampling policy
       this.samplingPolicy.lastSampleTime = location.timestamp;
       this.samplingPolicy.lastSampleLocation = {
+        timestamp: location.timestamp,
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
+        state,
       };
 
       // Periodically update trip statistics (every 10 points)
-      const points = getTripLocationPoints(this.tripId);
+      const points = await getTripLocationPoints(this.tripId);
       if (points.length % 10 === 0) {
         await this.updateTripStatistics();
       }
@@ -161,7 +168,7 @@ export class TripTracker {
   private async updateTripStatistics() {
     if (!this.tripId) return;
 
-    const points = getTripLocationPoints(this.tripId);
+    const points = await getTripLocationPoints(this.tripId);
     if (points.length < 2) return;
 
     const totalMiles = calculateTotalDistance(points, 'miles');

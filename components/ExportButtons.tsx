@@ -4,7 +4,7 @@ import { Download, FileText } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
-import { loadThemeColors } from '@/utils/theme';
+import { loadThemeColors } from '~/utils/theme';
 
 interface ExportButtonsProps {
   rows: any[];
@@ -190,10 +190,9 @@ export default function ExportButtons({
 
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    gap: 12,
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
+    flexDirection: 'column',
+    gap: 8,
+    alignItems: 'flex-end',
   },
   button: {
     flexDirection: 'row',

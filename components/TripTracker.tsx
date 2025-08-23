@@ -1,13 +1,13 @@
 // components/TripTracker.tsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated } from 'react-native';
 import { Play, Square } from 'lucide-react-native';
 import * as Location from 'expo-location';
-import { requestLocationPermissions, getCurrentLocation, reverseGeocode, getStateFromCoords } from '@/utils/location';
-import { getActiveTrip, insertTrip, updateTrip, insertLocationPoint } from '@/utils/database';
-import { shouldSample, isNoisyJump, haversineMi, bucketMilesByState } from '@/utils/ifta';
-import { getGpsHighAccuracy } from '@/utils/prefs';
-import type { Trip } from '@/types';
+import { requestLocationPermissions, getCurrentLocation, reverseGeocode, getStateFromCoords } from '~/utils/location';
+import { getActiveTrip, insertTrip, updateTrip, insertLocationPoint } from '~/utils/database';
+import { shouldSample, isNoisyJump, haversineMi, bucketMilesByState } from '~/utils/ifta';
+import { getGpsHighAccuracy } from '~/utils/prefs';
+import type { Trip } from '~/types';
 
 type Props = {
   onTripUpdate?: () => void;
@@ -15,6 +15,8 @@ type Props = {
 
 export default function TripTracker({ onTripUpdate }: Props) {
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const locationWatcher = useRef<Location.LocationSubscription | null>(null);
   const lastSamplePoint = useRef<any>(null);
   const lastSampleTime = useRef<number>(0);
@@ -22,6 +24,7 @@ export default function TripTracker({ onTripUpdate }: Props) {
   const updateThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spinValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     mounted.current = true;
@@ -39,6 +42,46 @@ export default function TripTracker({ onTripUpdate }: Props) {
     };
   }, []);
 
+  // Verify active trip still exists when component updates
+  useEffect(() => {
+    if (activeTrip?.isActive) {
+      const verifyActiveTrip = async () => {
+        try {
+          const tripExists = await getActiveTrip();
+          if (!tripExists || tripExists.id !== activeTrip.id) {
+            // Trip was deleted while component was active, clean up
+            if (mounted.current) {
+              console.log('Active trip was deleted, cleaning up tracking');
+              setActiveTrip(null);
+              stopLocationTracking();
+            }
+          }
+        } catch (error) {
+          console.warn('Could not verify active trip:', error);
+        }
+      };
+      
+      // Check every 5 seconds while trip is active
+      const interval = setInterval(verifyActiveTrip, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTrip?.id]);
+
+  // Spinner animation effect
+  useEffect(() => {
+    if (isStarting || isStopping) {
+      const spinAnimation = Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        })
+      );
+      spinAnimation.start();
+      return () => spinAnimation.stop();
+    }
+  }, [isStarting, isStopping, spinValue]);
+
   const notifyParent = useCallback(() => {
     if (!onTripUpdate) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -50,7 +93,7 @@ export default function TripTracker({ onTripUpdate }: Props) {
   const startLocationTracking = useCallback(async (tripId: string) => {
     try {
       // Get GPS accuracy preference
-      const high = await getGpsHighAccuracy();
+      const highAccuracy = await getGpsHighAccuracy();
       
       // Reset tracking state
       lastSamplePoint.current = null;
@@ -59,7 +102,7 @@ export default function TripTracker({ onTripUpdate }: Props) {
       
       locationWatcher.current = await Location.watchPositionAsync(
         {
-          accuracy: high ? Location.Accuracy.BestForNavigation : Location.Accuracy.Balanced,
+          accuracy: highAccuracy ? Location.Accuracy.BestForNavigation : Location.Accuracy.Balanced,
           timeInterval: 15000, // Expo minimum
           distanceInterval: 200, // Expo minimum
         },
@@ -125,7 +168,18 @@ export default function TripTracker({ onTripUpdate }: Props) {
     }
   }, []);
 
+  // Function to force cleanup when trip is deleted externally
+  const forceCleanup = useCallback(() => {
+    if (mounted.current) {
+      setActiveTrip(null);
+      stopLocationTracking();
+    }
+  }, [stopLocationTracking]);
+
   const handleStart = useCallback(async () => {
+    if (isStarting) return; // Prevent multiple clicks
+    
+    setIsStarting(true);
     try {
       const ok = await requestLocationPermissions();
       if (!ok) {
@@ -133,8 +187,11 @@ export default function TripTracker({ onTripUpdate }: Props) {
         return;
       }
 
-      // Capture start location (best effort)
-      const coords = await getCurrentLocation();
+      // Get GPS accuracy preference for start location
+      const highAccuracy = await getGpsHighAccuracy();
+      
+      // Capture start location (best effort) - use GPS accuracy preference
+      const coords = await getCurrentLocation(highAccuracy);
       let address = 'Unknown';
       let state = 'Unknown';
       if (coords) {
@@ -161,7 +218,7 @@ export default function TripTracker({ onTripUpdate }: Props) {
         endLocation: undefined,
         points: [],
         milesByState: {},
-        notes: null,
+        notes: undefined,
       };
 
       const newId = await insertTrip(newTrip);
@@ -177,15 +234,39 @@ export default function TripTracker({ onTripUpdate }: Props) {
     } catch (e: any) {
       console.error('Error starting trip:', e);
       Alert.alert('Error', e?.message ?? 'Failed to start trip');
+    } finally {
+      if (mounted.current) {
+        setIsStarting(false);
+      }
     }
   }, [notifyParent, startLocationTracking]);
 
   const handleStop = useCallback(async () => {
+    if (isStopping) return; // Prevent multiple clicks
+    
+    setIsStopping(true);
     try {
       const current = await getActiveTrip();
       if (!current) {
         Alert.alert('Info', 'No active trip to stop.');
         return;
+      }
+
+      // Verify the trip still exists in the database
+      try {
+        const tripExists = await getActiveTrip();
+        if (!tripExists || tripExists.id !== current.id) {
+          // Trip was deleted while active, clean up the component state
+          if (mounted.current) {
+            setActiveTrip(null);
+            stopLocationTracking();
+          }
+          Alert.alert('Info', 'The active trip was deleted. Trip tracking stopped.');
+          return;
+        }
+      } catch (verifyError) {
+        console.warn('Could not verify trip exists:', verifyError);
+        // Continue with stopping the trip
       }
 
       // Stop location tracking
@@ -196,18 +277,27 @@ export default function TripTracker({ onTripUpdate }: Props) {
         const milesByState = bucketMilesByState(locationPoints.current);
         const totalMiles = Object.values(milesByState).reduce((sum, miles) => sum + miles, 0);
         
-        await updateTrip(current.id, {
-          totalMiles,
-          milesByState,
-        });
+        try {
+          await updateTrip(current.id, {
+            totalMiles,
+            milesByState,
+          });
+        } catch (updateError) {
+          console.warn('Could not update trip miles:', updateError);
+          // Trip might have been deleted, continue with cleanup
+        }
       }
 
       const endIso = new Date().toISOString();
-      await updateTrip(current.id, {
-        isActive: false,
-        endDate: endIso,
-        // If you also want to write final total miles here, pass totalMiles too
-      });
+      try {
+        await updateTrip(current.id, {
+          isActive: false,
+          endDate: endIso,
+        });
+      } catch (updateError) {
+        console.warn('Could not update trip end time:', updateError);
+        // Trip might have been deleted, continue with cleanup
+      }
 
       const fresh = await getActiveTrip(); // should be null after stop
       if (mounted.current) setActiveTrip(fresh);
@@ -216,6 +306,10 @@ export default function TripTracker({ onTripUpdate }: Props) {
     } catch (e: any) {
       console.error('Error stopping trip:', e);
       Alert.alert('Error', e?.message ?? 'Failed to stop trip');
+    } finally {
+      if (mounted.current) {
+        setIsStopping(false);
+      }
     }
   }, [notifyParent, stopLocationTracking]);
 
@@ -230,14 +324,64 @@ export default function TripTracker({ onTripUpdate }: Props) {
         </Text>
       </View>
       {activeTrip?.isActive ? (
-        <TouchableOpacity style={[styles.btn, styles.stop]} onPress={handleStop}>
-          <Square size={16} color="#fff" />
-          <Text style={styles.btnText}>Stop</Text>
+        <TouchableOpacity 
+          style={[styles.btn, styles.stop, isStopping && styles.btnDisabled]} 
+          onPress={handleStop}
+          disabled={isStopping}
+        >
+          {isStopping ? (
+            <>
+              <Animated.View 
+                style={[
+                  styles.spinner, 
+                  { 
+                    transform: [{ 
+                      rotate: spinValue.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '360deg']
+                      })
+                    }]
+                  }
+                ]} 
+              />
+              <Text style={styles.btnText}>Stopping...</Text>
+            </>
+          ) : (
+            <>
+              <Square size={16} color="#fff" />
+              <Text style={styles.btnText}>Stop</Text>
+            </>
+          )}
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity style={[styles.btn, styles.start]} onPress={handleStart}>
-          <Play size={16} color="#fff" />
-          <Text style={styles.btnText}>Start</Text>
+        <TouchableOpacity 
+          style={[styles.btn, styles.start, isStarting && styles.btnDisabled]} 
+          onPress={handleStart}
+          disabled={isStarting}
+        >
+          {isStarting ? (
+            <>
+              <Animated.View 
+                style={[
+                  styles.spinner, 
+                  { 
+                    transform: [{ 
+                      rotate: spinValue.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '360deg']
+                      })
+                    }]
+                  }
+                ]} 
+              />
+              <Text style={styles.btnText}>Starting...</Text>
+            </>
+          ) : (
+            <>
+              <Play size={16} color="#fff" />
+              <Text style={styles.btnText}>Start</Text>
+            </>
+          )}
         </TouchableOpacity>
       )}
     </View>
@@ -267,5 +411,14 @@ const styles = StyleSheet.create({
   },
   start: { backgroundColor: '#10B981' },
   stop: { backgroundColor: '#DC2626' },
+  btnDisabled: { opacity: 0.6 },
   btnText: { color: '#fff', fontWeight: '600' },
+  spinner: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#fff',
+    borderTopColor: 'transparent',
+  },
 });

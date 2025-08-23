@@ -2,10 +2,10 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { TrendingUp, DollarSign, MapPin, Calendar } from 'lucide-react-native';
 import { Link, useFocusEffect } from 'expo-router';
-import { getAllTrips, getAllFuelEntries, getActiveTrip, initializeDatabase } from '@/utils/database';
-import { requestLocationPermissions } from '@/utils/location';
-import { Trip } from '@/types';
-import { loadThemeColors } from '@/utils/theme';
+import { getAllTrips, getAllFuelEntries, getActiveTrip, initializeDatabase } from '~/utils/database';
+import { Trip } from '~/types';
+import { loadThemeColors } from '~/utils/theme';
+import LocationPermissionHandler from '~/components/LocationPermissionHandler';
 
 export default function HomeScreen() {
   const [trips, setTrips] = useState<any[]>([]);
@@ -32,7 +32,7 @@ export default function HomeScreen() {
       if (mounted.current) setColors(themeColors);
       
       await initializeDatabase();               // ok to call; it’s lightweight
-      await requestLocationPermissions();       // guarded in utils/location.ts
+
       const [tripsData, fuelData, active] = await Promise.all([
         getAllTrips(),
         getAllFuelEntries(),
@@ -84,9 +84,12 @@ export default function HomeScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Trucker Fuel Tax</Text>
+        <Text style={[styles.title, { color: colors.text }]}>IFTA Tracker</Text>
         <Text style={[styles.subtitle, { color: colors.muted }]}>Q{currentQuarter} {currentYear} Dashboard</Text>
       </View>
+
+      {/* Location Permission Handler */}
+      <LocationPermissionHandler />
 
       {/* Status card instead of embedding TripTracker here */}
       <View style={[styles.trackerCard, { backgroundColor: colors.surface }]}>

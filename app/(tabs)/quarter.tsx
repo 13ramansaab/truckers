@@ -3,12 +3,12 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { FileText, Download, TrendingUp, DollarSign, Calculator } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
-import { getQuarterTrips, getQuarterFuelPurchases, getTaxRatesSnapshot } from '@/utils/database';
-import { computeIFTA, bucketMilesByState } from '@/utils/ifta';
-import { formatDistance, formatVolume, formatEfficiency, miToKm, galToL, mpgToKmPerL } from '@/utils/units';
-import ExportButtons from '@/components/ExportButtons';
-import { getPreferredUnit, getPreferredCurrency } from '@/utils/prefs';
-import { loadThemeColors } from '@/utils/theme';
+import { getQuarterTrips, getQuarterFuelPurchases, getTaxRatesSnapshot } from '~/utils/database';
+import { computeIFTA, bucketMilesByState } from '~/utils/ifta';
+import { formatDistance, formatVolume, formatEfficiency, miToKm, galToL, mpgToKmPerL } from '~/utils/units';
+import ExportButtons from '~/components/ExportButtons';
+import { getPreferredUnit, getPreferredCurrency } from '~/utils/prefs';
+import { loadThemeColors } from '~/utils/theme';
 
 function getQuarterRange(year: number, q: number) {
   const m0 = (q - 1) * 3;
@@ -279,6 +279,8 @@ export default function QuarterScreen() {
           <View style={styles.taxBreakdownContainer}>
             <View style={styles.taxBreakdownHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Tax Breakdown</Text>
+            </View>
+            <View style={styles.exportButtonsContainer}>
               <ExportButtons
                 rows={quarterData.stateBreakdown}
                 unitSystem={unitSystem}
@@ -475,9 +477,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   taxBreakdownHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    marginBottom: 16,
+  },
+  exportButtonsContainer: {
+    alignItems: 'flex-end',
     marginBottom: 16,
   },
   sectionTitle: {
