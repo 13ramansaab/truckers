@@ -32,13 +32,39 @@ export default function RootLayout() {
     const timer = setTimeout(initializeRevenueCat, 100);
 
     const sub = AppState.addEventListener('change', s => {
-      if (s === 'active') supabase.auth.startAutoRefresh();
-      else supabase.auth.stopAutoRefresh();
+      if (s === 'active' && supabase?.auth?.startAutoRefresh) {
+        try {
+          supabase.auth.startAutoRefresh();
+        } catch (error) {
+          console.warn('Failed to start auth auto-refresh:', error);
+        }
+      } else if (s !== 'active' && supabase?.auth?.stopAutoRefresh) {
+        try {
+          supabase.auth.stopAutoRefresh();
+        } catch (error) {
+          console.warn('Failed to stop auth auto-refresh:', error);
+        }
+      }
     });
-    supabase.auth.startAutoRefresh();
+    
+    // Start auto-refresh if available
+    if (supabase?.auth?.startAutoRefresh) {
+      try {
+        supabase.auth.startAutoRefresh();
+      } catch (error) {
+        console.warn('Failed to start auth auto-refresh:', error);
+      }
+    }
+    
     return () => { 
       clearTimeout(timer);
-      supabase.auth.stopAutoRefresh(); 
+      if (supabase?.auth?.stopAutoRefresh) {
+        try {
+          supabase.auth.stopAutoRefresh();
+        } catch (error) {
+          console.warn('Failed to stop auth auto-refresh:', error);
+        }
+      }
       sub.remove(); 
     };
   }, []);

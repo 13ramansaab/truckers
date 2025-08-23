@@ -22,7 +22,8 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs location access to track your trips and calculate mileage for IFTA reporting.",
         "NSCameraUsageDescription": "This app needs camera access to scan fuel receipts.",
         "NSPhotoLibraryUsageDescription": "This app needs photo library access to save fuel receipts.",
-        "NSMicrophoneUsageDescription": "This app needs microphone access for voice notes."
+        "NSMicrophoneUsageDescription": "This app needs microphone access for voice notes.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

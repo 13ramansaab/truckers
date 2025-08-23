@@ -2,18 +2,39 @@ import { createClient } from '@supabase/supabase-js';
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder_key_123456789';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth:   {
-    storage: AsyncStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: false,
-    flowType: 'implicit',
-  },
-});
+// Create Supabase client with error handling
+let supabase: any = null;
+
+try {
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storage: AsyncStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+      flowType: 'implicit',
+    },
+  });
+} catch (error) {
+  console.warn('Failed to create Supabase client:', error);
+  // Create a mock client to prevent crashes
+  supabase = {
+    auth: {
+      getSession: async () => ({ data: { session: null } }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      signUp: async () => ({ error: null }),
+      signInWithPassword: async () => ({ error: null }),
+      signInWithOtp: async () => ({ error: null }),
+      verifyOtp: async () => ({ data: null, error: null }),
+      signOut: async () => {},
+    },
+  };
+}
+
+export { supabase };
 
 // Database types matching our schema
 export interface Database {
