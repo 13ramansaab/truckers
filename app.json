@@ -17,6 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ifta.calculator",
+      "buildNumber": "2",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs location access to track your trips and calculate mileage for IFTA reporting.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs location access to track your trips and calculate mileage for IFTA reporting.",
