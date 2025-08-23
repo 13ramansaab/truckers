@@ -21,8 +21,18 @@ export interface ProfileUpdateData {
  */
 export async function getProfile(): Promise<Profile | null> {
   try {
+    if (!supabase?.auth?.getUser) {
+      console.warn('Supabase auth not available');
+      return null;
+    }
+    
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
+      return null;
+    }
+
+    if (!supabase?.from) {
+      console.warn('Supabase database not available');
       return null;
     }
 
@@ -50,9 +60,17 @@ export async function getProfile(): Promise<Profile | null> {
  */
 export async function upsertProfile(data: ProfileUpdateData): Promise<void> {
   try {
+    if (!supabase?.auth?.getUser) {
+      throw new Error('Authentication not available');
+    }
+    
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       throw new Error('User not authenticated');
+    }
+
+    if (!supabase?.from) {
+      throw new Error('Database not available');
     }
 
     const { error } = await supabase

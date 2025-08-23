@@ -6,8 +6,17 @@ import type { Session } from '@supabase/supabase-js';
  * Get the current session
  */
 export async function getSession(): Promise<Session | null> {
-  const { data } = await supabase.auth.getSession();
-  return data.session ?? null;
+  try {
+    if (!supabase?.auth?.getSession) {
+      console.warn('Supabase auth not available');
+      return null;
+    }
+    const { data } = await supabase.auth.getSession();
+    return data?.session ?? null;
+  } catch (error) {
+    console.warn('Error getting session:', error);
+    return null;
+  }
 }
 
 /**
@@ -16,8 +25,23 @@ export async function getSession(): Promise<Session | null> {
  * @returns Unsubscribe function
  */
 export function onAuthChange(cb: (session: Session | null) => void) {
-  const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => cb(sess));
-  return () => sub.subscription.unsubscribe();
+  try {
+    if (!supabase?.auth?.onAuthStateChange) {
+      console.warn('Supabase auth not available');
+      return () => {};
+    }
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => cb(sess));
+    return () => {
+      try {
+        sub?.subscription?.unsubscribe?.();
+      } catch (error) {
+        console.warn('Error unsubscribing from auth changes:', error);
+      }
+    };
+  } catch (error) {
+    console.warn('Error setting up auth change listener:', error);
+    return () => {};
+  }
 }
 
 /**
@@ -26,12 +50,21 @@ export function onAuthChange(cb: (session: Session | null) => void) {
  * @param password Password
  */
 export async function signUpWithPassword(email: string, password: string): Promise<void> {
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-  });
-  
-  if (error) {
+  try {
+    if (!supabase?.auth?.signUp) {
+      throw new Error('Authentication not available');
+    }
+    
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+    
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error('Sign up error:', error);
     throw error;
   }
 }
@@ -42,12 +75,21 @@ export async function signUpWithPassword(email: string, password: string): Promi
  * @param password Password
  */
 export async function signInWithPassword(email: string, password: string): Promise<void> {
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-  
-  if (error) {
+  try {
+    if (!supabase?.auth?.signInWithPassword) {
+      throw new Error('Authentication not available');
+    }
+    
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error('Sign in error:', error);
     throw error;
   }
 }

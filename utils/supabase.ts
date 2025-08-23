@@ -7,30 +7,150 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholde
 
 // Create Supabase client with error handling
 let supabase: any = null;
+let isMockMode = false;
 
 try {
-  supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      storage: AsyncStorage,
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: false,
-      flowType: 'implicit',
-    },
-  });
+  // Check if we have real environment variables
+  if (process.env.EXPO_PUBLIC_SUPABASE_URL && 
+      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY &&
+      !process.env.EXPO_PUBLIC_SUPABASE_URL.includes('placeholder') &&
+      !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY.includes('placeholder')) {
+    
+    supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        storage: AsyncStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        flowType: 'implicit',
+      },
+    });
+    console.log('Using real Supabase client');
+  } else {
+    throw new Error('No real Supabase credentials available');
+  }
 } catch (error) {
-  console.warn('Failed to create Supabase client:', error);
-  // Create a mock client to prevent crashes
+  console.warn('Using mock Supabase client for development:', error);
+  isMockMode = true;
+  
+  // Create a mock client that simulates successful authentication
   supabase = {
     auth: {
-      getSession: async () => ({ data: { session: null } }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-      signUp: async () => ({ error: null }),
-      signInWithPassword: async () => ({ error: null }),
-      signInWithOtp: async () => ({ error: null }),
-      verifyOtp: async () => ({ data: null, error: null }),
-      signOut: async () => {},
+      getSession: async () => ({ 
+        data: { 
+          session: {
+            user: { id: 'mock-user-123', email: 'mock@example.com' },
+            access_token: 'mock-token',
+            refresh_token: 'mock-refresh-token'
+          } 
+        } 
+      }),
+      onAuthStateChange: (callback: any) => {
+        // Simulate immediate authentication
+        setTimeout(() => {
+          callback('SIGNED_IN', {
+            user: { id: 'mock-user-123', email: 'mock@example.com' },
+            access_token: 'mock-token',
+            refresh_token: 'mock-refresh-token'
+          });
+        }, 100);
+        
+        return { 
+          data: { 
+            subscription: { 
+              unsubscribe: () => {} 
+            } 
+          } 
+        };
+      },
+      signUp: async (credentials: any) => {
+        console.log('Mock signup successful:', credentials.email);
+        return { 
+          data: { 
+            user: { id: 'mock-user-123', email: credentials.email },
+            session: {
+              user: { id: 'mock-user-123', email: credentials.email },
+              access_token: 'mock-token',
+              refresh_token: 'mock-refresh-token'
+            }
+          }, 
+          error: null 
+        };
+      },
+      signInWithPassword: async (credentials: any) => {
+        console.log('Mock signin successful:', credentials.email);
+        return { 
+          data: { 
+            user: { id: 'mock-user-123', email: credentials.email },
+            session: {
+              user: { id: 'mock-user-123', email: credentials.email },
+              access_token: 'mock-token',
+              refresh_token: 'mock-refresh-token'
+            }
+          }, 
+          error: null 
+        };
+      },
+      signInWithOtp: async (credentials: any) => {
+        console.log('Mock OTP signin successful:', credentials.email);
+        return { 
+          data: { 
+            user: { id: 'mock-user-123', email: credentials.email },
+            session: {
+              user: { id: 'mock-user-123', email: credentials.email },
+              access_token: 'mock-token',
+              refresh_token: 'mock-refresh-token'
+            }
+          }, 
+          error: null 
+        };
+      },
+      verifyOtp: async (credentials: any) => {
+        console.log('Mock OTP verification successful:', credentials.email);
+        return { 
+          data: { 
+            user: { id: 'mock-user-123', email: credentials.email },
+            session: {
+              user: { id: 'mock-user-123', email: credentials.email },
+              access_token: 'mock-token',
+              refresh_token: 'mock-refresh-token'
+            }
+          }, 
+          error: null 
+        };
+      },
+      signOut: async () => {
+        console.log('Mock signout successful');
+        return { error: null };
+      },
+      startAutoRefresh: () => {
+        console.log('Mock auth auto-refresh started');
+      },
+      stopAutoRefresh: () => {
+        console.log('Mock auth auto-refresh stopped');
+      }
     },
+    from: (table: string) => ({
+      select: (columns: string) => ({
+        limit: (count: number) => ({
+          then: (callback: any) => {
+            callback({ data: [], error: null });
+          }
+        }),
+        then: (callback: any) => {
+          callback({ data: [], error: null });
+        }
+      }),
+      insert: (data: any) => ({
+        select: (columns: string) => ({
+          single: () => ({
+            then: (callback: any) => {
+              callback({ data: { id: 'mock-id-123' }, error: null });
+            }
+          })
+        })
+      })
+    })
   };
 }
 
