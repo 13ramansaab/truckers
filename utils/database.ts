@@ -47,6 +47,11 @@ const mapDbTripToDomain = (row: any): Trip => {
 // Trip operations
 export const insertTrip = async (trip: Trip) => {
   try {
+    if (!supabase) {
+      console.warn('Supabase client not available');
+      return undefined;
+    }
+    
     // Capture start location if missing
     let start_lat = trip.startLocation?.latitude ?? null;
     let start_lng = trip.startLocation?.longitude ?? null;
@@ -55,12 +60,16 @@ export const insertTrip = async (trip: Trip) => {
     let start_state: string | null = trip.startLocation?.state ?? null;
 
     if (start_lat == null || start_lng == null || !start_address) {
-      const coords = await getCurrentLocation();
-      if (coords) {
-        start_lat = coords.latitude;
-        start_lng = coords.longitude;
-        start_address = await reverseGeocode(coords);
-        start_state = await getStateFromCoords(coords);
+      try {
+        const coords = await getCurrentLocation();
+        if (coords) {
+          start_lat = coords.latitude;
+          start_lng = coords.longitude;
+          start_address = await reverseGeocode(coords);
+          start_state = await getStateFromCoords(coords);
+        }
+      } catch (locationError) {
+        console.warn('Failed to get location:', locationError);
       }
     }
 

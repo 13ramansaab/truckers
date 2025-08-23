@@ -30,18 +30,25 @@ export default function AuthGate({ children }: AuthGateProps) {
 
     // Listen for auth changes
     const unsubscribe = onAuthChange((session) => {
-      setSession(session);
-      if (session) {
-        setEmail('');
-        setPassword('');
-        // Ensure user has a profile row
+      try {
+        setSession(session);
+        if (session && session.user && session.user.id) {
+          setEmail('');
+          setPassword('');
+                  // Ensure user has a profile row
         ensureUserProfile();
         // Link RevenueCat to user
         try {
-          logInToPurchases(session.user.id);
+          if (typeof logInToPurchases === 'function') {
+            logInToPurchases(session.user.id);
+          }
         } catch (error) {
           console.warn('Failed to link RevenueCat user:', error);
         }
+        }
+      } catch (error) {
+        console.warn('Error handling auth change:', error);
+        setSession(null);
       }
     });
 
@@ -53,10 +60,14 @@ export default function AuthGate({ children }: AuthGateProps) {
       const profile = await getProfile();
       if (!profile) {
         // Create empty profile row for new user
-        await upsertProfile({});
+        try {
+          await upsertProfile({});
+        } catch (upsertError) {
+          console.warn('Failed to upsert user profile:', upsertError);
+        }
       }
     } catch (error) {
-      console.warn('Failed to ensure user profile:', error);
+      console.warn('Failed to get user profile:', error);
     }
   };
 

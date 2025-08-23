@@ -56,7 +56,13 @@ export default function PaywallGate({ children }: PaywallGateProps) {
       await initIAP();
       
       // Check if user already has pro access
-      const proStatus = await getProStatus();
+      let proStatus = false;
+      try {
+        proStatus = await getProStatus();
+      } catch (error) {
+        console.warn('Failed to get pro status:', error);
+      }
+      
       if (proStatus) {
         setPro(true);
         setTrialActive(false);
@@ -66,8 +72,14 @@ export default function PaywallGate({ children }: PaywallGateProps) {
       }
       
       // Check if user already has an active trial (don't auto-start one)
-      const trial = await isTrialActiveWithoutAutoStart();
-      const days = await daysLeftWithoutAutoStart();
+      let trial = false;
+      let days = 0;
+      try {
+        trial = await isTrialActiveWithoutAutoStart();
+        days = await daysLeftWithoutAutoStart();
+      } catch (error) {
+        console.warn('Failed to get trial status:', error);
+      }
       
       setPro(false);
       setTrialActive(trial);

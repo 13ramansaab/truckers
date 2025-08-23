@@ -30,18 +30,30 @@ const getCacheKey = (coords: LocationCoords): string => {
 };
 
 export const calculateDistance = (start: LocationCoords, end: LocationCoords): number => {
-  const R = 3959; // miles
-  const dLat = (end.latitude - start.latitude) * (Math.PI / 180);
-  const dLon = (end.longitude - start.longitude) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(start.latitude * (Math.PI / 180)) *
-      Math.cos(end.latitude * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = R * c;
-  return Math.round(distance * 100) / 100; // 2 dp
+  try {
+    if (!start || !end || 
+        typeof start.latitude !== 'number' || typeof start.longitude !== 'number' ||
+        typeof end.latitude !== 'number' || typeof end.longitude !== 'number') {
+      console.warn('Invalid coordinates for distance calculation');
+      return 0;
+    }
+    
+    const R = 3959; // miles
+    const dLat = (end.latitude - start.latitude) * (Math.PI / 180);
+    const dLon = (end.longitude - start.longitude) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(start.latitude * (Math.PI / 180)) *
+        Math.cos(end.latitude * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    return Math.round(distance * 100) / 100; // 2 dp
+  } catch (error) {
+    console.warn('Error calculating distance:', error);
+    return 0;
+  }
 };
 
 const isWithinCacheDistance = (a: LocationCoords, b: LocationCoords): boolean => {
