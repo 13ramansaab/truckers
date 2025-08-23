@@ -33,6 +33,8 @@ try {
   console.warn('Using mock Supabase client for development:', error);
   isMockMode = true;
   
+  console.log(`Platform: ${Platform.OS}, Mock mode enabled`);
+  
   // Create a mock client that simulates successful authentication
   supabase = {
     auth: {
@@ -64,32 +66,50 @@ try {
         };
       },
       signUp: async (credentials: any) => {
-        console.log('Mock signup successful:', credentials.email);
-        return { 
-          data: { 
-            user: { id: 'mock-user-123', email: credentials.email },
-            session: {
+        try {
+          console.log('Mock signup called with:', credentials);
+          // Simulate network delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const result = { 
+            data: { 
               user: { id: 'mock-user-123', email: credentials.email },
-              access_token: 'mock-token',
-              refresh_token: 'mock-refresh-token'
-            }
-          }, 
-          error: null 
-        };
+              session: {
+                user: { id: 'mock-user-123', email: credentials.email },
+                access_token: 'mock-token',
+                refresh_token: 'mock-refresh-token'
+              }
+            }, 
+            error: null 
+          };
+          console.log('Mock signup returning:', result);
+          return result;
+        } catch (error) {
+          console.error('Mock signup error:', error);
+          return { data: null, error: { message: 'Mock account creation failed' } };
+        }
       },
       signInWithPassword: async (credentials: any) => {
-        console.log('Mock signin successful:', credentials.email);
-        return { 
-          data: { 
-            user: { id: 'mock-user-123', email: credentials.email },
-            session: {
+        try {
+          console.log('Mock signin called with:', credentials);
+          // Simulate network delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const result = { 
+            data: { 
               user: { id: 'mock-user-123', email: credentials.email },
-              access_token: 'mock-token',
-              refresh_token: 'mock-refresh-token'
-            }
-          }, 
-          error: null 
-        };
+              session: {
+                user: { id: 'mock-user-123', email: credentials.email },
+                access_token: 'mock-token',
+                refresh_token: 'mock-refresh-token'
+              }
+            }, 
+            error: null 
+          };
+          console.log('Mock signin returning:', result);
+          return result;
+        } catch (error) {
+          console.error('Mock signin error:', error);
+          return { data: null, error: { message: 'Mock authentication failed' } };
+        }
       },
       signInWithOtp: async (credentials: any) => {
         console.log('Mock OTP signin successful:', credentials.email);
@@ -132,24 +152,17 @@ try {
     },
     from: (table: string) => ({
       select: (columns: string) => ({
-        limit: (count: number) => ({
-          then: (callback: any) => {
-            callback({ data: [], error: null });
-          }
-        }),
-        then: (callback: any) => {
-          callback({ data: [], error: null });
-        }
+        limit: (count: number) => Promise.resolve({ data: [], error: null }),
+        eq: (column: string, value: any) => ({
+          maybeSingle: () => Promise.resolve({ data: null, error: null })
+        })
       }),
       insert: (data: any) => ({
         select: (columns: string) => ({
-          single: () => ({
-            then: (callback: any) => {
-              callback({ data: { id: 'mock-id-123' }, error: null });
-            }
-          })
+          single: () => Promise.resolve({ data: { id: 'mock-id-123' }, error: null })
         })
-      })
+      }),
+      upsert: (data: any, options: any) => Promise.resolve({ data: null, error: null })
     })
   };
 }

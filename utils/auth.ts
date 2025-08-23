@@ -80,14 +80,17 @@ export async function signInWithPassword(email: string, password: string): Promi
       throw new Error('Authentication not available');
     }
     
+    console.log('Attempting to sign in with password for:', email);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     
     if (error) {
+      console.error('Supabase signin error:', error);
       throw error;
     }
+    console.log('Sign in successful for:', email);
   } catch (error) {
     console.error('Sign in error:', error);
     throw error;

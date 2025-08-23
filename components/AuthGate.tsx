@@ -79,7 +79,9 @@ export default function AuthGate({ children }: AuthGateProps) {
 
     setIsCreating(true);
     try {
+      console.log('Attempting to create account for:', email);
       await signUpWithPassword(email, password);
+      console.log('Account creation successful');
       
       // Reset onboarding state for new users so they see the onboarding flow
       try {
@@ -91,6 +93,7 @@ export default function AuthGate({ children }: AuthGateProps) {
       
       Alert.alert('Success', 'Account created successfully');
     } catch (error: any) {
+      console.error('Account creation failed:', error);
       Alert.alert('Error', error.message || 'Failed to create account');
     } finally {
       setIsCreating(false);
@@ -105,8 +108,11 @@ export default function AuthGate({ children }: AuthGateProps) {
 
     setIsSigningIn(true);
     try {
+      console.log('Attempting to sign in:', email);
       await signInWithPassword(email, password);
+      console.log('Sign in successful');
     } catch (error: any) {
+      console.error('Sign in failed:', error);
       Alert.alert('Error', error.message || 'Failed to sign in');
     } finally {
       setIsSigningIn(false);
