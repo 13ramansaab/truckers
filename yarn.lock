@@ -5704,7 +5704,7 @@ react-native-is-edge-to-edge@^1.1.6, react-native-is-edge-to-edge@^1.1.7:
   resolved "https://registry.yarnpkg.com/react-native-is-edge-to-edge/-/react-native-is-edge-to-edge-1.2.1.tgz#64e10851abd9d176cbf2b40562f751622bde3358"
   integrity sha512-FLbPWl/MyYQWz+KwqOZsSyj2JmLKglHatd3xLZWskXOpRaio4LfEDEz8E/A6uD8QoTHW6Aobw1jbEwK7KMgR7Q==
 
-react-native-purchases@^9.2.0:
+react-native-purchases@^9.2.2:
   version "9.2.2"
   resolved "https://registry.yarnpkg.com/react-native-purchases/-/react-native-purchases-9.2.2.tgz#0ae7791c0514bc37f62081a6b7b7002eb80a1999"
   integrity sha512-j376mva8G6SLA2HPTROpUGoivfLMZVWPM7mj2bcgTS8y6NzbyQJ20Npe8V3nWc0N5YFTuknTF8pl0tWc6FqYbA==

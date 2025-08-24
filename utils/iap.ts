@@ -61,12 +61,23 @@ export async function initIAP() {
 
 export async function getProStatus(): Promise<boolean> {
   try {
+    console.log('RevenueCat: Getting pro status...');
     await initIAP();
+    console.log('RevenueCat: Pro status:', cachedPro);
     return cachedPro; // false on web/Expo Go
   } catch (error) {
     console.warn('RevenueCat: Could not get pro status:', error);
     return false;
   }
+}
+
+export function getRevenueCatStatus() {
+  return {
+    inited,
+    nativeSupported: NATIVE_SUPPORTED,
+    isExpoGo: IS_EXPO_GO,
+    platform: Platform.OS
+  };
 }
 
 export async function getMonthlySubscriptionPackage() {
@@ -117,8 +128,12 @@ export async function getPackages() {
 
 export async function purchaseFirstAvailable(): Promise<boolean> {
   try {
+    console.log('RevenueCat: Starting purchase process...');
     await initIAP();
-    if (!NATIVE_SUPPORTED || IS_EXPO_GO) return false;
+    if (!NATIVE_SUPPORTED || IS_EXPO_GO) {
+      console.log('RevenueCat: Not supported on this platform');
+      return false;
+    }
   } catch (error) {
     console.warn('RevenueCat: Could not purchase package:', error);
     return false;
@@ -126,64 +141,81 @@ export async function purchaseFirstAvailable(): Promise<boolean> {
   
   try {
     // Try to get the specific monthly subscription package
+    console.log('RevenueCat: Getting monthly subscription package...');
     const monthlyPackage = await getMonthlySubscriptionPackage();
     if (monthlyPackage) {
+      console.log('RevenueCat: Found monthly package:', monthlyPackage.product.identifier);
       try {
         // First try with purchasePackage
+        console.log('RevenueCat: Attempting package purchase...');
         const result = await Purchases.purchasePackage(monthlyPackage);
+        console.log('RevenueCat: Package purchase successful:', result);
         cachedPro = isPro(result.customerInfo);
         return cachedPro;
       } catch (packageError) {
-        console.log('Package purchase failed, trying product purchase:', packageError);
+        console.log('RevenueCat: Package purchase failed, trying product purchase:', packageError);
         // Fallback to purchaseProduct with PURCHASE_TYPE.SUBS
-        console.log('Attempting product purchase with PURCHASE_TYPE.SUBS:', monthlyPackage.product.identifier);
+        console.log('RevenueCat: Attempting product purchase with PURCHASE_TYPE.SUBS:', monthlyPackage.product.identifier);
         const result = await Purchases.purchaseProduct(
           monthlyPackage.product.identifier,
           null,
           PURCHASE_TYPE.SUBS
         );
-        console.log('Product purchase successful:', result);
+        console.log('RevenueCat: Product purchase successful:', result);
         cachedPro = isPro(result.customerInfo);
         return cachedPro;
       }
     }
     
     // Fallback to first available package
+    console.log('RevenueCat: No monthly package found, trying first available...');
     const pkgs = await getPackages();
-    if (!pkgs.length) return false;
+    if (!pkgs.length) {
+      console.log('RevenueCat: No packages available');
+      return false;
+    }
     
+    console.log('RevenueCat: Found packages:', pkgs.map(p => p.product.identifier));
     try {
       const result = await Purchases.purchasePackage(pkgs[0]);
+      console.log('RevenueCat: Fallback package purchase successful:', result);
       cachedPro = isPro(result.customerInfo);
       return cachedPro;
     } catch (packageError) {
-      console.log('Package purchase failed, trying product purchase:', packageError);
-              // Fallback to purchaseProduct with PURCHASE_TYPE.SUBS
-        console.log('Attempting product purchase with PURCHASE_TYPE.SUBS (fallback):', pkgs[0].product.identifier);
-        const result = await Purchases.purchaseProduct(
-          pkgs[0].product.identifier,
-          null,
-          PURCHASE_TYPE.SUBS
-        );
-        console.log('Product purchase successful (fallback):', result);
-        cachedPro = isPro(result.customerInfo);
-        return cachedPro;
+      console.log('RevenueCat: Fallback package purchase failed, trying product purchase:', packageError);
+      // Fallback to purchaseProduct with PURCHASE_TYPE.SUBS
+      console.log('RevenueCat: Attempting product purchase with PURCHASE_TYPE.SUBS (fallback):', pkgs[0].product.identifier);
+      const result = await Purchases.purchaseProduct(
+        pkgs[0].product.identifier,
+        null,
+        PURCHASE_TYPE.SUBS
+      );
+      console.log('RevenueCat: Fallback product purchase successful:', result);
+      cachedPro = isPro(result.customerInfo);
+      return cachedPro;
     }
   } catch (error) {
-    console.error('Purchase failed:', error);
+    console.error('RevenueCat: Purchase failed:', error);
     return false;
   }
 }
 
 export async function restore(): Promise<boolean> {
   try {
+    console.log('RevenueCat: Starting restore process...');
     await initIAP();
-    if (!NATIVE_SUPPORTED || IS_EXPO_GO) return false;
+    if (!NATIVE_SUPPORTED || IS_EXPO_GO) {
+      console.log('RevenueCat: Not supported on this platform');
+      return false;
+    }
+    console.log('RevenueCat: Calling Purchases.restorePurchases()...');
     const customerInfo = await Purchases.restorePurchases();
+    console.log('RevenueCat: Restore successful, customer info:', customerInfo);
     cachedPro = isPro(customerInfo);
+    console.log('RevenueCat: Pro status after restore:', cachedPro);
     return cachedPro;
   } catch (error) {
-    console.warn('RevenueCat: Could not restore purchases:', error);
+    console.error('RevenueCat: Could not restore purchases:', error);
     return false;
   }
 }

@@ -5,7 +5,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ensureTrialStart, isTrialActiveWithoutAutoStart, daysLeftWithoutAutoStart } from '~/utils/trial';
-import { initIAP, getProStatus, getPackages, purchaseFirstAvailable, purchaseProduct, restore } from '~/utils/iap';
+import { initIAP, getProStatus, getPackages, purchaseFirstAvailable, purchaseProduct, restore, getRevenueCatStatus } from '~/utils/iap';
 import { getMonthlyProductId } from '~/revenuecat-config';
 import OnboardingCarousel from './OnboardingCarousel';
 
@@ -114,47 +114,63 @@ export default function PaywallGate({ children }: PaywallGateProps) {
   };
 
   const handleStartTrial = async () => {
+    console.log('PaywallGate: Start trial button clicked');
     setPurchasing(true);
     try {
       if (IS_NATIVE && !IS_EXPO_GO) {
+        console.log('PaywallGate: Using RevenueCat for native app');
         // Native app: use RevenueCat purchase
         let success = await purchaseFirstAvailable();
+        console.log('PaywallGate: purchaseFirstAvailable result:', success);
         
         // If package purchase fails, try direct product purchase
         if (!success) {
-          console.log('Package purchase failed, trying direct product purchase...');
+          console.log('PaywallGate: Package purchase failed, trying direct product purchase...');
           const monthlyProductId = getMonthlyProductId();
-          console.log('Attempting to purchase product:', monthlyProductId);
+          console.log('PaywallGate: Attempting to purchase product:', monthlyProductId);
           success = await purchaseProduct(monthlyProductId);
-          console.log('Direct product purchase result:', success);
+          console.log('PaywallGate: Direct product purchase result:', success);
         }
         
         if (success) {
+          console.log('PaywallGate: Purchase successful, checking access...');
           await checkAccess();
+        } else {
+          console.log('PaywallGate: Purchase failed');
         }
       } else {
+        console.log('PaywallGate: Using device trial for Expo Go/Web');
         // Expo Go/Web: use device trial
         await ensureTrialStart();
         await checkAccess();
       }
     } catch (error) {
-      console.error('Start trial error:', error);
+      console.error('PaywallGate: Start trial error:', error);
     } finally {
       setPurchasing(false);
     }
   };
 
   const handleRestore = async () => {
-    if (IS_EXPO_GO || Platform.OS === 'web') return;
+    console.log('PaywallGate: Restore button clicked');
+    if (IS_EXPO_GO || Platform.OS === 'web') {
+      console.log('PaywallGate: Restore not available on Expo Go/Web');
+      return;
+    }
     
     setRestoring(true);
     try {
+      console.log('PaywallGate: Calling restore()...');
       const success = await restore();
+      console.log('PaywallGate: Restore result:', success);
       if (success) {
+        console.log('PaywallGate: Restore successful, checking access...');
         await checkAccess();
+      } else {
+        console.log('PaywallGate: Restore failed');
       }
     } catch (error) {
-      console.error('Restore error:', error);
+      console.error('PaywallGate: Restore error:', error);
     } finally {
       setRestoring(false);
     }
@@ -166,6 +182,14 @@ export default function PaywallGate({ children }: PaywallGateProps) {
 
   const openPrivacy = () => {
     Linking.openURL('https://example.com/privacy');
+  };
+
+  const debugRevenueCat = () => {
+    const status = getRevenueCatStatus();
+    console.log('PaywallGate: RevenueCat Status:', status);
+    console.log('PaywallGate: Platform:', Platform.OS);
+    console.log('PaywallGate: IS_EXPO_GO:', IS_EXPO_GO);
+    console.log('PaywallGate: IS_NATIVE:', IS_NATIVE);
   };
 
   if (loading) {
@@ -238,6 +262,16 @@ export default function PaywallGate({ children }: PaywallGateProps) {
                   <Text style={styles.restoreButtonText}>Restore purchases</Text>
                 </>
               )}
+            </TouchableOpacity>
+          )}
+
+          {/* Debug button for development */}
+          {__DEV__ && (
+            <TouchableOpacity
+              style={[styles.restoreButton]}
+              onPress={debugRevenueCat}
+            >
+              <Text style={styles.restoreButtonText}>Debug RevenueCat</Text>
             </TouchableOpacity>
           )}
         </View>
