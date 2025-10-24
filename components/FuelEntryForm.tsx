@@ -1,17 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, Platform, Switch } from 'react-native';
-import { Camera, Save, MapPin, Image as ImageIcon } from 'lucide-react-native';
+import { Camera, Save, MapPin, Image as ImageIcon, Crown } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { insertFuelPurchase } from '~/utils/database';
 import { uploadReceiptImage } from '~/utils/storage';
 import { FuelPurchase } from '~/types';
 import { getCurrentLocation, getStateFromCoords } from '~/utils/location';
+import { canAddFuelEntry, incrementFuelCount, getSubscriptionTier } from '~/utils/subscription';
 
 interface FuelEntryFormProps {
   onEntryAdded?: (entry: FuelPurchase) => void;
+  onUpgradePress?: () => void;
 }
 
-export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
+export default function FuelEntryForm({ onEntryAdded, onUpgradePress }: FuelEntryFormProps) {
   const [gallons, setGallons] = useState('');
   const [pricePerGallon, setPricePerGallon] = useState('');
   const [state, setState] = useState('');
@@ -23,6 +25,18 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
   const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [uploadedReceiptUrl, setUploadedReceiptUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [fuelLimitInfo, setFuelLimitInfo] = useState<{ allowed: boolean; currentCount?: number; limit?: number }>({ allowed: true });
+  const [isPremium, setIsPremium] = useState(false);
+
+  useEffect(() => {
+    const checkLimits = async () => {
+      const tier = await getSubscriptionTier();
+      setIsPremium(tier === 'premium');
+      const limitInfo = await canAddFuelEntry();
+      setFuelLimitInfo(limitInfo);
+    };
+    checkLimits();
+  }, []);
 
   const requestCameraPermission = async () => {
     if (Platform.OS !== 'web') {
@@ -33,6 +47,18 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
   };
 
   const takePhoto = async () => {
+    if (!isPremium) {
+      Alert.alert(
+        'Premium Feature',
+        'Receipt capture is a Premium feature.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade to Premium', onPress: onUpgradePress },
+        ]
+      );
+      return;
+    }
+
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
       Alert.alert('Permission Required', 'Camera permission is required to take receipt photos');
@@ -81,6 +107,18 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
   };
 
   const saveFuelPurchase = async () => {
+    if (!fuelLimitInfo.allowed) {
+      Alert.alert(
+        'Free Tier Limit Reached',
+        `You've reached the limit of ${fuelLimitInfo.limit} fuel entries this quarter. Upgrade to Premium for unlimited entries.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade to Premium', onPress: onUpgradePress },
+        ]
+      );
+      return;
+    }
+
     if (!gallons || !pricePerGallon || !state || !location) {
       Alert.alert('Missing Information', 'Please fill in all required fields (gallons, price, state, and location)');
       return;
@@ -134,6 +172,12 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
       };
 
       await insertFuelPurchase(fuelPurchase);
+
+      await incrementFuelCount();
+
+      const updatedLimitInfo = await canAddFuelEntry();
+      setFuelLimitInfo(updatedLimitInfo);
+
       onEntryAdded?.(fuelPurchase);
 
       // Reset form
@@ -164,6 +208,20 @@ export default function FuelEntryForm({ onEntryAdded }: FuelEntryFormProps) {
     <ScrollView style={styles.container}>
       <View style={styles.form}>
         <Text style={styles.title}>Add Fuel Purchase</Text>
+
+        {!isPremium && fuelLimitInfo.limit && (
+          <View style={styles.limitBanner}>
+            <Text style={styles.limitText}>
+              {fuelLimitInfo.currentCount || 0}/{fuelLimitInfo.limit} entries this quarter
+            </Text>
+            {!fuelLimitInfo.allowed && (
+              <TouchableOpacity style={styles.upgradeButton} onPress={onUpgradePress}>
+                <Crown size={14} color="#FFFFFF" />
+                <Text style={styles.upgradeButtonText}>Upgrade</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         <View style={styles.row}>
           <View style={styles.halfField}>
@@ -432,5 +490,36 @@ const styles = StyleSheet.create({
   },
   saveButtonDisabled: {
     backgroundColor: '#6B7280',
+  },
+  limitBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#374151',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+  },
+  limitText: {
+    color: '#F3F4F6',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    gap: 4,
+  },
+  upgradeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

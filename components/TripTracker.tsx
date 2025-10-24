@@ -1,22 +1,25 @@
 // components/TripTracker.tsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated } from 'react-native';
-import { Play, Square } from 'lucide-react-native';
+import { Play, Square, Crown } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import { requestLocationPermissions, getCurrentLocation, reverseGeocode, getStateFromCoords } from '~/utils/location';
 import { getActiveTrip, insertTrip, updateTrip, insertLocationPoint } from '~/utils/database';
 import { shouldSample, isNoisyJump, haversineMi, bucketMilesByState } from '~/utils/ifta';
 import { getGpsHighAccuracy } from '~/utils/prefs';
+import { getSubscriptionTier, getSubscriptionFeatures } from '~/utils/subscription';
 import type { Trip } from '~/types';
 
 type Props = {
   onTripUpdate?: () => void;
+  onUpgradePress?: () => void;
 };
 
-export default function TripTracker({ onTripUpdate }: Props) {
+export default function TripTracker({ onTripUpdate, onUpgradePress }: Props) {
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const locationWatcher = useRef<Location.LocationSubscription | null>(null);
   const lastSamplePoint = useRef<any>(null);
   const lastSampleTime = useRef<number>(0);
@@ -30,7 +33,11 @@ export default function TripTracker({ onTripUpdate }: Props) {
     mounted.current = true;
     (async () => {
       const t = await getActiveTrip();
-      if (mounted.current) setActiveTrip(t);
+      const tier = await getSubscriptionTier();
+      if (mounted.current) {
+        setActiveTrip(t);
+        setIsPremium(tier === 'premium');
+      }
     })();
     return () => {
       mounted.current = false;
@@ -177,8 +184,20 @@ export default function TripTracker({ onTripUpdate }: Props) {
   }, [stopLocationTracking]);
 
   const handleStart = useCallback(async () => {
-    if (isStarting) return; // Prevent multiple clicks
-    
+    if (isStarting) return;
+
+    if (!isPremium) {
+      Alert.alert(
+        'Premium Feature',
+        'GPS-based automatic trip tracking is a Premium feature. Free users can manually log trips in the Trip tab.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade to Premium', onPress: onUpgradePress },
+        ]
+      );
+      return;
+    }
+
     setIsStarting(true);
     try {
       const ok = await requestLocationPermissions();
@@ -354,32 +373,33 @@ export default function TripTracker({ onTripUpdate }: Props) {
           )}
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity 
-          style={[styles.btn, styles.start, isStarting && styles.btnDisabled]} 
+        <TouchableOpacity
+          style={[styles.btn, isPremium ? styles.start : styles.premium, isStarting && styles.btnDisabled]}
           onPress={handleStart}
           disabled={isStarting}
         >
           {isStarting ? (
             <>
-              <Animated.View 
+              <Animated.View
                 style={[
-                  styles.spinner, 
-                  { 
-                    transform: [{ 
+                  styles.spinner,
+                  {
+                    transform: [{
                       rotate: spinValue.interpolate({
                         inputRange: [0, 1],
                         outputRange: ['0deg', '360deg']
                       })
                     }]
                   }
-                ]} 
+                ]}
               />
               <Text style={styles.btnText}>Starting...</Text>
             </>
           ) : (
             <>
-              <Play size={16} color="#fff" />
-              <Text style={styles.btnText}>Start</Text>
+              {!isPremium && <Crown size={16} color="#fff" />}
+              {isPremium && <Play size={16} color="#fff" />}
+              <Text style={styles.btnText}>{isPremium ? 'Start' : 'Premium'}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -411,6 +431,7 @@ const styles = StyleSheet.create({
   },
   start: { backgroundColor: '#10B981' },
   stop: { backgroundColor: '#DC2626' },
+  premium: { backgroundColor: '#F59E0B' },
   btnDisabled: { opacity: 0.6 },
   btnText: { color: '#fff', fontWeight: '600' },
   spinner: {

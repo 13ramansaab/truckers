@@ -184,8 +184,26 @@ ifta-tracker/
 
 ## Subscription Model
 
-- **Free Trial**: 3-day trial period for new users
-- **Monthly Subscription**: Full access to all features
+The app offers two tiers to meet different user needs:
+
+### FREE Tier
+- Manual trip logging (no GPS tracking)
+- Manual fuel entry (up to 10 entries per quarter)
+- View current quarter stats only
+- Basic dashboard with limited analytics
+- No report generation (can only view raw data)
+
+### PREMIUM Tier ($9.99/month)
+- **3-day free trial** for new subscribers
+- GPS-based automatic trip tracking
+- Background tracking
+- Unlimited fuel entries with receipt capture
+- Full quarterly IFTA report generation
+- PDF/CSV export
+- Historical report access (all previous quarters)
+- Advanced analytics and charts
+- Cloud backup and sync
+- Priority support
 - **Restore Purchases**: Supports subscription restoration across devices
 
 ## Testing

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { FileText, Download, TrendingUp, DollarSign, Calculator } from 'lucide-react-native';
+import { FileText, Download, TrendingUp, DollarSign, Calculator, Crown, Lock } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { getQuarterTrips, getQuarterFuelPurchases, getTaxRatesSnapshot } from '~/utils/database';
@@ -9,6 +9,8 @@ import { formatDistance, formatVolume, formatEfficiency, miToKm, galToL, mpgToKm
 import ExportButtons from '~/components/ExportButtons';
 import { getPreferredUnit, getPreferredCurrency } from '~/utils/prefs';
 import { loadThemeColors } from '~/utils/theme';
+import { getSubscriptionTier } from '~/utils/subscription';
+import { router } from 'expo-router';
 
 function getQuarterRange(year: number, q: number) {
   const m0 = (q - 1) * 3;
@@ -25,6 +27,7 @@ export default function QuarterScreen() {
   const [loading, setLoading] = useState(false);
   const [totals, setTotals] = useState<any>(null);
   const [colors, setColors] = useState<any>(null);
+  const [isPremium, setIsPremium] = useState(false);
 
   useEffect(() => {
     // Auto-detect current quarter
@@ -42,17 +45,26 @@ export default function QuarterScreen() {
 
   const loadPreferencesAndGenerateReport = async () => {
     try {
-      const [unit, themeColors] = await Promise.all([
+      const [unit, themeColors, tier] = await Promise.all([
         getPreferredUnit(),
-        loadThemeColors()
+        loadThemeColors(),
+        getSubscriptionTier()
       ]);
-      
+
       setUnitSystem(unit);
       setColors(themeColors);
-      await generateReport(selectedQuarter, selectedYear, unit);
+      setIsPremium(tier === 'premium');
+
+      if (tier === 'premium') {
+        await generateReport(selectedQuarter, selectedYear, unit);
+      }
     } catch (error) {
       console.error('Error loading preferences:', error);
-      await generateReport(selectedQuarter, selectedYear, unitSystem);
+      const tier = await getSubscriptionTier();
+      setIsPremium(tier === 'premium');
+      if (tier === 'premium') {
+        await generateReport(selectedQuarter, selectedYear, unitSystem);
+      }
     }
   };
 
@@ -163,6 +175,46 @@ export default function QuarterScreen() {
   }
 
   const dynamicStyles = createDynamicStyles(colors);
+
+  const handleUpgrade = () => {
+    router.push('/(authenticated)/(tabs)/settings');
+  };
+
+  if (!isPremium) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>Quarterly Summary</Text>
+          <Text style={[styles.subtitle, { color: colors.muted }]}>IFTA tax calculations and reporting</Text>
+        </View>
+
+        <View style={[styles.premiumGate, { backgroundColor: colors.surface }]}>
+          <Lock size={48} color="#F59E0B" />
+          <Text style={[styles.premiumTitle, { color: colors.text }]}>Premium Feature</Text>
+          <Text style={[styles.premiumDescription, { color: colors.muted }]}>
+            IFTA report generation is available with Premium subscription.
+          </Text>
+          <Text style={[styles.premiumDescription, { color: colors.muted }]}>
+            Free users can view current quarter raw data in the dashboard.
+          </Text>
+          <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
+            <Crown size={20} color="#FFFFFF" />
+            <Text style={styles.upgradeButtonText}>Upgrade to Premium</Text>
+          </TouchableOpacity>
+
+          <View style={[styles.featuresList, { borderColor: colors.border }]}>
+            <Text style={[styles.featuresTitle, { color: colors.text }]}>Premium Includes:</Text>
+            <Text style={[styles.featureItem, { color: colors.muted }]}>• Quarterly IFTA report generation</Text>
+            <Text style={[styles.featureItem, { color: colors.muted }]}>• State-by-state breakdown</Text>
+            <Text style={[styles.featureItem, { color: colors.muted }]}>• PDF and CSV export</Text>
+            <Text style={[styles.featureItem, { color: colors.muted }]}>• Historical report access</Text>
+            <Text style={[styles.featureItem, { color: colors.muted }]}>• GPS-based trip tracking</Text>
+            <Text style={[styles.featureItem, { color: colors.muted }]}>• Unlimited fuel entries</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -584,5 +636,53 @@ const styles = StyleSheet.create({
   stateValue: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  premiumGate: {
+    margin: 16,
+    borderRadius: 12,
+    padding: 32,
+    alignItems: 'center',
+  },
+  premiumTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  premiumDescription: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 16,
+    gap: 8,
+  },
+  upgradeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  featuresList: {
+    marginTop: 24,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    width: '100%',
+  },
+  featuresTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  featureItem: {
+    fontSize: 14,
+    marginBottom: 8,
   },
 });

@@ -62,12 +62,24 @@ export default function SubscriptionModal({
     return null;
   }
 
-  const features = [
-    'Unlimited CSV exports',
-    'Unlimited PDF reports',
+  const freeFeatures = [
+    'Manual trip logging',
+    'Manual fuel entry (10 per quarter)',
+    'View current quarter stats',
+    'Basic dashboard',
+  ];
+
+  const premiumFeatures = [
+    'GPS-based automatic trip tracking',
+    'Background tracking',
+    'Unlimited fuel entries',
+    'Receipt capture',
+    'Full IFTA report generation',
+    'PDF/CSV export',
+    'Historical report access',
     'Advanced analytics',
+    'Cloud backup & sync',
     'Priority support',
-    'Cloud backup',
   ];
 
   return (
@@ -93,7 +105,7 @@ export default function SubscriptionModal({
               Upgrade to Premium
             </Text>
             <Text style={[styles.subtitle, { color: colors.muted }]}>
-              Unlock unlimited exports and premium features
+              Unlock GPS tracking, unlimited entries, and full IFTA reports
             </Text>
           </View>
 
@@ -116,18 +128,33 @@ export default function SubscriptionModal({
             </Text>
           </View>
 
-          <View style={styles.featuresSection}>
-            <Text style={[styles.featuresTitle, { color: colors.text }]}>
-              What's included:
-            </Text>
-            {features.map((feature, index) => (
-              <View key={index} style={styles.featureItem}>
-                <Check size={20} color="#10B981" />
-                <Text style={[styles.featureText, { color: colors.text }]}>
-                  {feature}
-                </Text>
+          <View style={styles.comparisonSection}>
+            <View style={[styles.tierCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.tierTitle, { color: colors.muted }]}>FREE TIER</Text>
+              {freeFeatures.map((feature, index) => (
+                <View key={index} style={styles.featureItem}>
+                  <Check size={16} color={colors.muted} />
+                  <Text style={[styles.featureText, { color: colors.muted, fontSize: 13 }]}>
+                    {feature}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={[styles.tierCard, styles.premiumCard, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}>
+              <View style={styles.premiumBadge}>
+                <Crown size={16} color={colors.primary} />
+                <Text style={[styles.tierTitle, { color: colors.primary }]}>PREMIUM</Text>
               </View>
-            ))}
+              {premiumFeatures.map((feature, index) => (
+                <View key={index} style={styles.featureItem}>
+                  <Check size={16} color="#10B981" />
+                  <Text style={[styles.featureText, { color: colors.text, fontSize: 13 }]}>
+                    {feature}
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
 
           <TouchableOpacity
@@ -240,15 +267,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 16,
   },
-  featureItem: {
+  comparisonSection: {
+    marginBottom: 32,
+    gap: 16,
+  },
+  tierCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+  },
+  premiumCard: {
+    borderWidth: 2,
+  },
+  tierTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  premiumBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     marginBottom: 12,
-    gap: 12,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    gap: 8,
   },
   featureText: {
-    fontSize: 16,
+    fontSize: 14,
     flex: 1,
+    lineHeight: 18,
   },
   subscribeButton: {
     paddingVertical: 16,

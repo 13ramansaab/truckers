@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 
+export type SubscriptionTier = 'free' | 'premium';
+
 export interface SubscriptionData {
   id: string;
   user_id: string;
@@ -23,6 +25,18 @@ export interface ActiveSubscription {
   latest_purchase_at: string;
   expires_at: string;
   rc_app_user_id: string;
+}
+
+export interface SubscriptionFeatures {
+  canUseGPSTracking: boolean;
+  canUseBackgroundTracking: boolean;
+  maxFuelEntriesPerQuarter: number | null;
+  canGenerateReports: boolean;
+  canExportReports: boolean;
+  canAccessHistory: boolean;
+  canCaptureReceipts: boolean;
+  canUseAdvancedAnalytics: boolean;
+  canUseCloudBackup: boolean;
 }
 
 /**
@@ -139,6 +153,175 @@ export async function linkRCUserToSupabase(rcAppUserId: string): Promise<boolean
     return true;
   } catch (error) {
     console.error('Database: Error in linkRCUserToSupabase:', error);
+    return false;
+  }
+}
+
+/**
+ * Get subscription tier for current user
+ */
+export async function getSubscriptionTier(): Promise<SubscriptionTier> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return 'free';
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('subscription_tier')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching subscription tier:', error);
+      return 'free';
+    }
+
+    return (data?.subscription_tier as SubscriptionTier) || 'free';
+  } catch (error) {
+    console.error('Error in getSubscriptionTier:', error);
+    return 'free';
+  }
+}
+
+/**
+ * Update subscription tier in profile
+ */
+export async function updateSubscriptionTier(tier: SubscriptionTier): Promise<boolean> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return false;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ subscription_tier: tier })
+      .eq('id', user.id);
+
+    if (error) {
+      console.error('Error updating subscription tier:', error);
+      return false;
+    }
+
+    console.log('Subscription tier updated:', { userId: user.id, tier });
+    return true;
+  } catch (error) {
+    console.error('Error in updateSubscriptionTier:', error);
+    return false;
+  }
+}
+
+/**
+ * Get subscription features based on tier
+ */
+export function getSubscriptionFeatures(tier: SubscriptionTier): SubscriptionFeatures {
+  if (tier === 'premium') {
+    return {
+      canUseGPSTracking: true,
+      canUseBackgroundTracking: true,
+      maxFuelEntriesPerQuarter: null,
+      canGenerateReports: true,
+      canExportReports: true,
+      canAccessHistory: true,
+      canCaptureReceipts: true,
+      canUseAdvancedAnalytics: true,
+      canUseCloudBackup: true,
+    };
+  }
+
+  return {
+    canUseGPSTracking: false,
+    canUseBackgroundTracking: false,
+    maxFuelEntriesPerQuarter: 10,
+    canGenerateReports: false,
+    canExportReports: false,
+    canAccessHistory: false,
+    canCaptureReceipts: false,
+    canUseAdvancedAnalytics: false,
+    canUseCloudBackup: false,
+  };
+}
+
+/**
+ * Check if user can add fuel entry (respects free tier limits)
+ */
+export async function canAddFuelEntry(): Promise<{ allowed: boolean; currentCount?: number; limit?: number }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { allowed: false };
+    }
+
+    const tier = await getSubscriptionTier();
+
+    if (tier === 'premium') {
+      return { allowed: true };
+    }
+
+    const { data, error } = await supabase.rpc('can_add_fuel_entry', {
+      p_user_id: user.id
+    });
+
+    if (error) {
+      console.error('Error checking fuel entry limit:', error);
+      return { allowed: false };
+    }
+
+    const currentYear = new Date().getFullYear();
+    const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
+
+    const { data: countData } = await supabase.rpc('get_quarterly_fuel_count', {
+      p_user_id: user.id,
+      p_year: currentYear,
+      p_quarter: currentQuarter
+    });
+
+    return {
+      allowed: data as boolean,
+      currentCount: countData || 0,
+      limit: 10
+    };
+  } catch (error) {
+    console.error('Error in canAddFuelEntry:', error);
+    return { allowed: false };
+  }
+}
+
+/**
+ * Increment fuel entry count for free tier users
+ */
+export async function incrementFuelCount(): Promise<boolean> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return false;
+    }
+
+    const tier = await getSubscriptionTier();
+
+    if (tier === 'premium') {
+      return true;
+    }
+
+    const currentYear = new Date().getFullYear();
+    const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
+
+    const { error } = await supabase.rpc('increment_fuel_count', {
+      p_user_id: user.id,
+      p_year: currentYear,
+      p_quarter: currentQuarter
+    });
+
+    if (error) {
+      console.error('Error incrementing fuel count:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in incrementFuelCount:', error);
     return false;
   }
 }
