@@ -180,7 +180,8 @@ export default function RootLayout() {
             await initIAP();
             setRcInitialized(true);
           }
-          const { logInToPurchases } = await import('~/utils/iap');
+          const { logInToPurchases } = await import('~/utils/iap')
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
           await logInToPurchases(session.user.id);
           console.log('RootLayout: RC loggedIn userId=', session.user.id, ', listener active? true');
         } catch (error) {
