@@ -1,23 +1,23 @@
 {
   "expo": {
-    "name": "IFTA Tracker",
+    "name": "Trucking IFTA Calculator",
     "slug": "ifta-tracker",
-    "version": "3.0.0",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#111827"
+      "backgroundColor": "#FFFFFF"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ifta.calculator",
-      "buildNumber": "3",
+      "bundleIdentifier": "com.ifta.Tcalculator",
+      "buildNumber": "6",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs location access to track your trips and calculate mileage for IFTA reporting.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs location access to track your trips and calculate mileage for IFTA reporting.",
@@ -30,9 +30,9 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-chrome-512x512.png",
-        "backgroundColor": "#111827"
+        "backgroundColor": "#FFFFFF"
       },
-      "package": "com.ifta.calculator",
+      "package": "com.ifta.Tcalculator",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -46,7 +46,8 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.INTERNET"
-      ]
+      ],
+      "versionCode": 8
     },
     "web": {
       "favicon": "./assets/images/favicon-32x32.png",
@@ -58,7 +59,9 @@
       "expo-camera",
       "expo-file-system",
       "expo-sqlite",
-      "expo-router"
+      "expo-router",
+      "expo-font",
+      "expo-web-browser"
     ],
     "extra": {
       "revenueCat": {

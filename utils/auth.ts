@@ -134,5 +134,20 @@ export async function verifyOtp(email: string, token: string): Promise<boolean> 
  * Sign out the current user
  */
 export async function signOut(): Promise<void> {
-  await supabase.auth.signOut();
+  try {
+    // Logout from RevenueCat first
+    try {
+      const { logOutFromPurchases } = await import('~/utils/iap');
+      await logOutFromPurchases();
+      console.log('Auth: Logged out from RevenueCat on signOut');
+    } catch (rcError) {
+      console.warn('Auth: Failed to logout from RevenueCat on signOut:', rcError);
+    }
+    
+    // Then logout from Supabase
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error('Auth: Error during signOut:', error);
+    throw error;
+  }
 }

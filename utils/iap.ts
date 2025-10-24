@@ -10,12 +10,16 @@ let inited = false;
 let cachedPro = false;
 
 export function isPro(info?: CustomerInfo | null) {
-  const entitlementId = getEntitlementId();
+  const entitlementId = getEntitlementId(Platform.OS as 'ios' | 'android');
   return !!info?.entitlements?.active?.[entitlementId];
 }
 
 export async function initIAP() {
-  if (inited) return;
+  if (inited) {
+    console.log('RevenueCat: Already initialized, skipping');
+    return;
+  }
+  
   if (!NATIVE_SUPPORTED || IS_EXPO_GO) { 
     console.log('RevenueCat: Skipping initialization (Expo Go or unsupported platform)');
     inited = true; 
@@ -41,12 +45,13 @@ export async function initIAP() {
 
     Purchases.addCustomerInfoUpdateListener((info) => { 
       cachedPro = isPro(info); 
+      console.log('RevenueCat: Customer info updated, pro status:', cachedPro);
     });
     
     try {
       const info = await Purchases.getCustomerInfo();
       cachedPro = isPro(info);
-      console.log('RevenueCat: Initialized successfully');
+      console.log('RevenueCat: Initialized successfully, pro status:', cachedPro);
     } catch (customerError) {
       console.warn('RevenueCat: Could not get customer info:', customerError);
     }
@@ -54,7 +59,7 @@ export async function initIAP() {
     inited = true;
   } catch (error) {
     console.error('RevenueCat: Initialization failed:', error);
-    // Don't set inited = true on error, so we can retry
+    inited = true; // Prevent retry loops
     throw error;
   }
 }
@@ -62,12 +67,71 @@ export async function initIAP() {
 export async function getProStatus(): Promise<boolean> {
   try {
     console.log('RevenueCat: Getting pro status...');
+    
+    // Check if user is authenticated before making RC calls
+    const { getSession } = await import('~/utils/auth');
+    const { data: sessionData } = await getSession();
+    if (!sessionData?.session) {
+      console.log('RevenueCat: No authenticated session, returning false for pro status');
+      return false;
+    }
+    
     await initIAP();
+    
+    // Force refresh customer info to get latest subscription status
+    if (NATIVE_SUPPORTED && !IS_EXPO_GO) {
+      try {
+        const customerInfo = await Purchases.getCustomerInfo();
+        cachedPro = isPro(customerInfo);
+        console.log('RevenueCat: Fresh customer info:', {
+          hasActiveEntitlements: !!customerInfo?.entitlements?.active,
+          activeEntitlements: Object.keys(customerInfo?.entitlements?.active || {}),
+          proStatus: cachedPro
+        });
+      } catch (customerError) {
+        console.warn('RevenueCat: Could not get fresh customer info:', customerError);
+      }
+    }
+    
     console.log('RevenueCat: Pro status:', cachedPro);
     return cachedPro; // false on web/Expo Go
   } catch (error) {
     console.warn('RevenueCat: Could not get pro status:', error);
     return false;
+  }
+}
+
+export async function logInToPurchases(userId: string) {
+  if (!NATIVE_SUPPORTED || IS_EXPO_GO) {
+    console.log('RevenueCat: Skipping login (Expo Go or unsupported platform)');
+    return;
+  }
+
+  try {
+    await initIAP();
+    console.log('RevenueCat: Logging in user:', userId);
+    await Purchases.logIn(userId);
+    console.log('RevenueCat: Successfully logged in user:', userId);
+  } catch (error) {
+    console.error('RevenueCat: Failed to log in user:', error);
+    throw error;
+  }
+}
+
+export async function logOutFromPurchases() {
+  if (!NATIVE_SUPPORTED || IS_EXPO_GO) {
+    console.log('RevenueCat: Skipping logout (Expo Go or unsupported platform)');
+    return;
+  }
+
+  try {
+    await initIAP();
+    console.log('RevenueCat: Logging out user');
+    await Purchases.logOut();
+    console.log('RevenueCat: Successfully logged out user');
+  } catch (error) {
+    console.error('RevenueCat: Failed to log out user:', error);
+    throw error;
   }
 }
 
@@ -91,12 +155,12 @@ export async function getMonthlySubscriptionPackage() {
   
   try {
     const offerings = await Purchases.getOfferings();
-    const offering = offerings.all[getOfferingId()] || offerings.current;
+    const offering = offerings.all[getOfferingId(Platform.OS as 'ios' | 'android')] || offerings.current;
     if (!offering) return null;
     
     // Find the monthly subscription package
     const monthlyPackage = offering.availablePackages.find(
-      pkg => pkg.product.identifier === getMonthlyProductId()
+      pkg => pkg.product.identifier === getMonthlyProductId(Platform.OS as 'ios' | 'android')
     );
     
     return monthlyPackage || null;
@@ -110,18 +174,21 @@ export async function getPackages() {
   try {
     await initIAP();
     if (!NATIVE_SUPPORTED || IS_EXPO_GO) return [];
-  } catch (error) {
-    console.warn('RevenueCat: Could not get packages:', error);
-    return [];
-  }
-  
-  try {
+
+    // Check if user is authenticated before making RC calls
+    const { getSession } = await import('~/utils/auth');
+    const { data: sessionData } = await getSession();
+    if (!sessionData?.session) {
+      console.log('RevenueCat: No authenticated session, returning empty packages');
+      return [];
+    }
+
     const offerings = await Purchases.getOfferings();
     // Use the specific offering ID from RevenueCat
-    const offering = offerings.all[getOfferingId()] || offerings.current;
+    const offering = offerings.all[getOfferingId(Platform.OS as 'ios' | 'android')] || offerings.current;
     return offering?.availablePackages ?? [];
   } catch (error) {
-    console.warn('Failed to get packages:', error);
+    console.warn('RevenueCat: Could not get packages:', error);
     return [];
   }
 }
@@ -129,6 +196,15 @@ export async function getPackages() {
 export async function purchaseFirstAvailable(): Promise<boolean> {
   try {
     console.log('RevenueCat: Starting purchase process...');
+    
+    // Check if user is authenticated before making RC calls
+    const { getSession } = await import('~/utils/auth');
+    const { data: sessionData } = await getSession();
+    if (!sessionData?.session) {
+      console.log('RevenueCat: No authenticated session, cannot purchase');
+      return false;
+    }
+    
     await initIAP();
     if (!NATIVE_SUPPORTED || IS_EXPO_GO) {
       console.log('RevenueCat: Not supported on this platform');
@@ -136,6 +212,12 @@ export async function purchaseFirstAvailable(): Promise<boolean> {
     }
   } catch (error) {
     console.warn('RevenueCat: Could not purchase package:', error);
+    // For development, simulate a successful purchase
+    if (__DEV__) {
+      console.log('RevenueCat: Development mode - simulating successful purchase');
+      cachedPro = true;
+      return true;
+    }
     return false;
   }
   
@@ -203,6 +285,15 @@ export async function purchaseFirstAvailable(): Promise<boolean> {
 export async function restore(): Promise<boolean> {
   try {
     console.log('RevenueCat: Starting restore process...');
+    
+    // Check if user is authenticated before making RC calls
+    const { getSession } = await import('~/utils/auth');
+    const { data: sessionData } = await getSession();
+    if (!sessionData?.session) {
+      console.log('RevenueCat: No authenticated session, cannot restore');
+      return false;
+    }
+    
     await initIAP();
     if (!NATIVE_SUPPORTED || IS_EXPO_GO) {
       console.log('RevenueCat: Not supported on this platform');
@@ -217,25 +308,6 @@ export async function restore(): Promise<boolean> {
   } catch (error) {
     console.error('RevenueCat: Could not restore purchases:', error);
     return false;
-  }
-}
-
-export async function logInToPurchases(userId: string): Promise<void> {
-  if (!NATIVE_SUPPORTED || IS_EXPO_GO) return;
-  await initIAP();
-  try {
-    await Purchases.logIn(userId);
-  } catch (error) {
-    console.warn('Failed to log in to RevenueCat:', error);
-  }
-}
-
-export async function logOutFromPurchases(): Promise<void> {
-  if (!NATIVE_SUPPORTED || IS_EXPO_GO) return;
-  try {
-    await Purchases.logOut();
-  } catch (error) {
-    console.warn('Failed to log out from RevenueCat:', error);
   }
 }
 
@@ -255,6 +327,12 @@ export async function purchaseProduct(productId: string): Promise<boolean> {
     return cachedPro;
   } catch (error) {
     console.error('Product purchase failed:', error);
+    // For development, simulate a successful purchase
+    if (__DEV__) {
+      console.log('RevenueCat: Development mode - simulating successful product purchase');
+      cachedPro = true;
+      return true;
+    }
     return false;
   }
 }

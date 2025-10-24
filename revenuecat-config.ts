@@ -5,14 +5,14 @@ export const REVENUECAT_CONFIG = {
   ios: {
     apiKey: 'appl_jdGcqdPCjFHqUcJKOJOzdWrYreI',
     offeringId: 'ofrngb819af58c8',
-    monthlyProductId: '$rc_monthly',
-    entitlementId: 'pro' // The entitlement that grants pro access
+    monthlyProductId: 'trucker_monthly_ios',
+    entitlementId: 'entlbe60acd0e1' // The entitlement that grants pro access
   },
   android: {
     apiKey: 'goog_rHRrdgkkUKXhGJSDmarzCZYwXoD', // TODO: Replace with your Android public SDK key from RevenueCat
     offeringId: 'ofrngb819af58c8',
-    monthlyProductId: '$rc_monthly',
-    entitlementId: 'pro'
+    monthlyProductId: 'trucker_monthly_android',
+    entitlementId: 'entlbe60acd0e1'
   }
 } as const;
 
@@ -22,16 +22,16 @@ export function getRevenueCatConfig(platform: 'ios' | 'android') {
 }
 
 // Helper function to get the offering ID
-export function getOfferingId() {
-  return REVENUECAT_CONFIG.ios.offeringId;
+export function getOfferingId(platform: 'ios' | 'android' = 'ios') {
+  return REVENUECAT_CONFIG[platform].offeringId;
 }
 
 // Helper function to get the monthly product ID
-export function getMonthlyProductId() {
-  return REVENUECAT_CONFIG.ios.monthlyProductId;
+export function getMonthlyProductId(platform: 'ios' | 'android' = 'ios') {
+  return REVENUECAT_CONFIG[platform].monthlyProductId;
 }
 
 // Helper function to get the entitlement ID
-export function getEntitlementId() {
-  return REVENUECAT_CONFIG.ios.entitlementId;
+export function getEntitlementId(platform: 'ios' | 'android' = 'ios') {
+  return REVENUECAT_CONFIG[platform].entitlementId;
 }

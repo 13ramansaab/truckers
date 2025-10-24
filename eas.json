@@ -32,12 +32,15 @@
       "developmentClient": true,
       "ios": {
         "resourceClass": "m-medium",
-        "buildConfiguration": "Debug"
+        "buildConfiguration": "Debug",
+        "autoIncrement": true
       },
       "android": {
         "resourceClass": "medium",
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease",
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease",
+        "credentialsSource": "remote",
+        "autoIncrement": true,
         "env": {
           "EXPO_USE_LEGACY_PACKAGING": "true"
         }
@@ -47,12 +50,14 @@
       "distribution": "store",
       "developmentClient": false,
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "autoIncrement": true
       },
       "android": {
         "resourceClass": "medium",
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease",
+        "autoIncrement": true,
         "env": {
           "EXPO_USE_LEGACY_PACKAGING": "true",
           "REACT_NATIVE_ARCHITECTURES": "arm64-v8a",

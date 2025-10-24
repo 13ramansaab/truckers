@@ -84,7 +84,7 @@ export default function HomeScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>IFTA Tracker</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Trucking IFTA Calculator</Text>
         <Text style={[styles.subtitle, { color: colors.muted }]}>Q{currentQuarter} {currentYear} Dashboard</Text>
       </View>
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Linking } from 'react-native';
-import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone, Crown, RefreshCw, User, LogOut } from 'lucide-react-native';
+import { Settings as SettingsIcon, Database, Download, Upload, Trash2, Info, MapPin, Smartphone, User, LogOut } from 'lucide-react-native';
 import { requestLocationPermissions } from '~/utils/location';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
@@ -99,53 +99,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const resetOnboarding = async () => {
-    try {
-      await AsyncStorage.removeItem('onboarding.seen');
-      Alert.alert('Success', 'Onboarding has been reset. Please restart the app to see the onboarding screens again.');
-    } catch (error) {
-      console.error('Error resetting onboarding:', error);
-      Alert.alert('Error', 'Failed to reset onboarding state');
-    }
-  };
-
-  const checkOnboardingState = async () => {
-    try {
-      const onboardingSeen = await AsyncStorage.getItem('onboarding.seen');
-      Alert.alert('Onboarding State', `Current state: ${onboardingSeen || 'not set'}`);
-    } catch (error) {
-      console.error('Error checking onboarding state:', error);
-      Alert.alert('Error', 'Failed to check onboarding state');
-    }
-  };
-
-  const resetTrialState = async () => {
-    try {
-      await AsyncStorage.removeItem('trial.startedAt');
-      Alert.alert('Success', 'Trial state has been reset. Please restart the app to see the paywall again.');
-    } catch (error) {
-      console.error('Error resetting trial state:', error);
-      Alert.alert('Error', 'Failed to reset trial state');
-    }
-  };
-
-  const checkTrialState = async () => {
-    try {
-      const trialStartedAt = await AsyncStorage.getItem('trial.startedAt');
-      if (trialStartedAt) {
-        const startTime = new Date(trialStartedAt);
-        const now = new Date();
-        const daysPassed = Math.floor((now.getTime() - startTime.getTime()) / (1000 * 60 * 60 * 24));
-        const daysLeft = Math.max(0, 3 - daysPassed);
-        Alert.alert('Trial State', `Trial started: ${startTime.toLocaleDateString()}\nDays left: ${daysLeft}`);
-      } else {
-        Alert.alert('Trial State', 'No trial has been started');
-      }
-    } catch (error) {
-      console.error('Error checking trial state:', error);
-      Alert.alert('Error', 'Failed to check trial state');
-    }
-  };
 
 
 
@@ -179,7 +132,7 @@ export default function SettingsScreen() {
   const clearCache = async () => {
     Alert.alert(
       'Clear Cache',
-      'This will clear app preferences, trial data, and subscription state. Continue?',
+      'This will clear app preferences and cached data. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -187,17 +140,19 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Clear settings and trial data
+              // Clear app preferences only
               await AsyncStorage.multiRemove([
                 'settings.unitSystem',
-                'trial.startedAt',
-                'iap.subscriptionState'
+                'settings.theme',
+                'settings.gpsHighAccuracy'
               ]);
               
               // Reset to defaults
               setUnitSystem('us');
+              setThemeState('system');
+              setHighAccuracy(true);
               
-              Alert.alert('Success', 'Cache cleared successfully');
+              Alert.alert('Success', 'App preferences cleared successfully');
             } catch (error) {
               console.error('Error clearing cache:', error);
               Alert.alert('Error', 'Failed to clear cache');
@@ -210,7 +165,7 @@ export default function SettingsScreen() {
 
   const showAbout = () => {
     Alert.alert(
-      'About Trucker Fuel Tax Calculator',
+      'About Trucking IFTA Calculator',
       `Version ${appVersion}\n\nA comprehensive app for owner-operators to track trips, log fuel purchases, and calculate IFTA tax obligations.\n\nFeatures:\n• GPS trip tracking\n• Fuel purchase logging\n• Automatic tax calculations\n• Quarterly reporting\n• Data export capabilities\n• Premium subscription with 3-day free trial`,
       [{ text: 'OK' }]
     );
@@ -382,7 +337,7 @@ export default function SettingsScreen() {
           <Database size={20} color={colors.primary} />
           <View style={styles.actionInfo}>
             <Text style={[styles.actionLabel, { color: colors.text }]}>Clear Cache</Text>
-            <Text style={[styles.actionDescription, { color: colors.muted }]}>Clear app preferences and trial data</Text>
+            <Text style={[styles.actionDescription, { color: colors.muted }]}>Clear app preferences and cached data</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -399,46 +354,11 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.section, { backgroundColor: colors.background }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Debug</Text>
-        
-        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={resetOnboarding}>
-          <RefreshCw size={20} color={colors.primary} />
-          <View style={styles.actionInfo}>
-            <Text style={[styles.actionLabel, { color: colors.text }]}>Reset Onboarding</Text>
-            <Text style={[styles.actionDescription, { color: colors.muted }]}>Show onboarding screens again (for testing)</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={checkOnboardingState}>
-          <Info size={20} color={colors.primary} />
-          <View style={styles.actionInfo}>
-            <Text style={[styles.actionLabel, { color: colors.text }]}>Check Onboarding State</Text>
-            <Text style={[styles.actionDescription, { color: colors.muted }]}>View current onboarding status</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={resetTrialState}>
-          <RefreshCw size={20} color={colors.primary} />
-          <View style={styles.actionInfo}>
-            <Text style={[styles.actionLabel, { color: colors.text }]}>Reset Trial State</Text>
-            <Text style={[styles.actionDescription, { color: colors.muted }]}>Clear trial data for testing</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.surface }]} onPress={checkTrialState}>
-          <Info size={20} color={colors.primary} />
-          <View style={styles.actionInfo}>
-            <Text style={[styles.actionLabel, { color: colors.text }]}>Check Trial State</Text>
-            <Text style={[styles.actionDescription, { color: colors.muted }]}>View current trial status</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
 
 
 
       <View style={styles.footer}>
-        <Text style={[styles.footerText, { color: colors.text }]}>IFTA Tracker</Text>
+        <Text style={[styles.footerText, { color: colors.text }]}>Trucking IFTA Calculator</Text>
         <Text style={[styles.footerSubtext, { color: colors.muted }]}>Version {appVersion}</Text>
       </View>
     </ScrollView>

@@ -92,7 +92,7 @@ eas build -p android --profile development --local
 ### **App Configuration**
 - **Name**: IFTA Tracker
 - **Slug**: ifta-tracker (for EAS compatibility)
-- **Bundle ID**: com.ifta.calculator
+- **Bundle ID**: com.ifta.Tcalculator
 - **Platforms**: iOS and Android
 
 ### **Build Profiles**

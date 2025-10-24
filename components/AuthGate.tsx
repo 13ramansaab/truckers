@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { getSession, onAuthChange, signUpWithPassword, signInWithPassword, signOut } from '~/utils/auth';
-import { logInToPurchases, logOutFromPurchases } from '~/utils/iap';
 import { getProfile, upsertProfile } from '~/utils/profile';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -17,38 +16,81 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
 
+  // Debug: Log when AuthGate mounts
+  console.log('AuthGate: Component mounted - this should only happen for unauthenticated users');
+
   useEffect(() => {
-    // Check initial session
-    getSession().then(session => {
-      setSession(session);
-      setLoading(false);
-    }).catch(error => {
-      console.warn('Failed to get session:', error);
-      setSession(null);
-      setLoading(false);
-    });
+    // FORCE CLEAR: Ensure we start completely fresh
+    const forceClearAndCheck = async () => {
+      try {
+        // Force clear any cached sessions
+        const { signOut } = await import('~/utils/auth');
+        await signOut();
+        console.log('AuthGate: FORCE CLEARED sessions on mount');
+        
+        // Wait a moment for clearing to take effect
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Now check session (should be null)
+        const session = await getSession();
+        console.log('AuthGate: session resolved after clear (authed?', !!session, ')');
+        setSession(session);
+        
+        // If no session, ensure RevenueCat is logged out
+        if (!session) {
+          try {
+            const { logOutFromPurchases } = await import('~/utils/iap');
+            await logOutFromPurchases();
+            console.log('AuthGate: No session found, logged out from RevenueCat');
+          } catch (error) {
+            console.warn('AuthGate: Failed to logout from RevenueCat:', error);
+          }
+        }
+        
+        setLoading(false);
+      } catch (error) {
+        console.warn('AuthGate: Error in force clear and check:', error);
+        setSession(null);
+        setLoading(false);
+      }
+    };
+    
+    forceClearAndCheck();
 
     // Listen for auth changes
-    const unsubscribe = onAuthChange((session) => {
+    const unsubscribe = onAuthChange(async (session) => {
       try {
+        console.log('AuthGate: Auth state changed:', !!session);
         setSession(session);
+        
         if (session && session.user && session.user.id) {
           setEmail('');
           setPassword('');
-                  // Ensure user has a profile row
-        ensureUserProfile();
-        // Link RevenueCat to user
-        try {
-          if (typeof logInToPurchases === 'function') {
-            logInToPurchases(session.user.id);
+          
+          // Ensure user has a profile row
+          ensureUserProfile();
+        } else {
+          // If no session, ensure RevenueCat is logged out
+          try {
+            const { logOutFromPurchases } = await import('~/utils/iap');
+            await logOutFromPurchases();
+            console.log('AuthGate: Session cleared, logged out from RevenueCat');
+          } catch (error) {
+            console.warn('AuthGate: Failed to logout from RevenueCat on session clear:', error);
           }
-        } catch (error) {
-          console.warn('Failed to link RevenueCat user:', error);
-        }
         }
       } catch (error) {
-        console.warn('Error handling auth change:', error);
+        console.warn('AuthGate: Error handling auth change:', error);
         setSession(null);
+        
+        // On error, also ensure RevenueCat is logged out
+        try {
+          const { logOutFromPurchases } = await import('~/utils/iap');
+          await logOutFromPurchases();
+          console.log('AuthGate: Auth change error, logged out from RevenueCat');
+        } catch (rcError) {
+          console.warn('AuthGate: Failed to logout from RevenueCat on auth change error:', rcError);
+        }
       }
     });
 
@@ -121,8 +163,6 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   const handleSignOut = async () => {
     try {
-      await logOutFromPurchases();
-      
       // Reset onboarding state when signing out so it can be shown again
       try {
         await AsyncStorage.removeItem('onboarding.seen');
@@ -131,6 +171,16 @@ export default function AuthGate({ children }: AuthGateProps) {
         console.warn('Could not reset onboarding state:', storageError);
       }
       
+      // Logout from RevenueCat first
+      try {
+        const { logOutFromPurchases } = await import('~/utils/iap');
+        await logOutFromPurchases();
+        console.log('AuthGate: Logged out from RevenueCat on sign out');
+      } catch (rcError) {
+        console.warn('AuthGate: Failed to logout from RevenueCat on sign out:', rcError);
+      }
+      
+      // Then logout from Supabase
       await signOut();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to sign out');
